@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'screens/lab_test_screen.dart';
+
 void main() => runApp(const SajhyaApp());
 
 class SajhyaApp extends StatelessWidget {
@@ -92,6 +94,13 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
   ];
 
   void _openService(ServiceItem service) {
+    if (service.title == 'Lab Test') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const LabTestScreen()),
+      );
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${service.title} selected')),
     );
