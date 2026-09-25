@@ -518,8 +518,14 @@ class _PackagesBanner extends StatelessWidget {
       Color(0xFF7754C7),
     ),
     (
-      'Whole Body Checkup',
-      'A broad general-health panel covering major organ systems.',
+      'Fever Panel',
+      'CBC plus common fever screens for quick evaluation.',
+      Icons.thermostat_outlined,
+      Color(0xFFE07A3F),
+    ),
+    (
+      'Master Health Checkup',
+      'A comprehensive panel covering blood count, sugar, lipids, liver & kidney function.',
       Icons.health_and_safety_outlined,
       Color(0xFF2384E8),
     ),
