@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import 'screens/lab_test_screen.dart';
+import 'screens/pharmacy_screen.dart';
 
 void main() => runApp(const SajhyaApp());
 
@@ -94,13 +95,17 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
   ];
 
   void _openService(ServiceItem service) {
-    if (service.title == 'Lab Test') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const LabTestScreen()),
-      );
+    final Widget? screen = switch (service.title) {
+      'Lab Test' => const LabTestScreen(),
+      'Pharmacy' => const PharmacyScreen(),
+      _ => null,
+    };
+
+    if (screen != null) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
       return;
     }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${service.title} selected')),
     );
