@@ -27,8 +27,15 @@ class ShopScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // Dynamic Floating Cart Status (Research Point 3: Anxiety Mitigation / Undo-Modify feedback loop)
-          _buildCartStatusAlert(),
+          // Fixed search bar -- stays put while the content below scrolls.
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: Colors.black.withOpacity(0.06))),
+            ),
+            child: _buildSearchBar(),
+          ),
 
           Expanded(
             child: SingleChildScrollView(
@@ -36,10 +43,6 @@ class ShopScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Natural Language Search Bar (Converts common symptoms into product matches)
-                  _buildSearchBar(),
-                  const SizedBox(height: 24),
-
                   // Quick Browse Grid Categories
                   const Text(
                     'EXPLORE CATEGORIES',
@@ -91,30 +94,6 @@ class ShopScreen extends StatelessWidget {
   }
 
   // --- Widget Component Builders ---
-
-  Widget _buildCartStatusAlert() {
-    return Container(
-      color: Colors.teal.shade50,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          const Icon(Icons.check_circle, color: Colors.teal, size: 20),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Text(
-              'Item added to cart.',
-              style: TextStyle(color: Colors.teal, fontWeight: FontWeight.w500, fontSize: 14),
-            ),
-          ),
-          TextButton(
-            onPressed: () {},
-            style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(50, 30)),
-            child: const Text('Undo', style: TextStyle(color: Colors.teal, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildSearchBar() {
     return Container(
