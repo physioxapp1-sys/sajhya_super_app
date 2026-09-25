@@ -195,7 +195,7 @@ class _LabTestScreenState extends State<LabTestScreen> {
                   },
                 ),
               const SizedBox(height: 24),
-              _PackagesBanner(panels: _panels),
+              _PackagesBanner(panels: _panels, allTests: _tests),
               const SizedBox(height: 20),
               _SafetyBanner(),
             ],
@@ -522,8 +522,9 @@ class _LabTestCard extends StatelessWidget {
 
 class _PackagesBanner extends StatelessWidget {
   final List<LabPanel> panels;
+  final List<LabTest> allTests;
 
-  const _PackagesBanner({required this.panels});
+  const _PackagesBanner({required this.panels, required this.allTests});
 
   // Illustrative fallback shown until real LabTestPanel rows exist on the
   // backend (see lab_app.management.commands.seed_lab_panels) -- matches
@@ -559,6 +560,24 @@ class _PackagesBanner extends StatelessWidget {
   void _notify(BuildContext context, String name) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('$name — contact us to book this package')),
+    );
+  }
+
+  void _openPanelDetails(BuildContext context, LabPanel panel, Color color) {
+    final byId = {for (final t in allTests) t.id: t};
+    final included = panel.testIds
+        .map((id) => byId[id])
+        .whereType<LabTest>()
+        .toList();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      builder: (_) => _PanelDetailsSheet(
+        panel: panel,
+        includedTests: included,
+        color: color,
+      ),
     );
   }
 
@@ -603,7 +622,7 @@ class _PackagesBanner extends StatelessWidget {
               icon: Icons.medical_information_outlined,
               color: color,
               price: panel.price,
-              onTap: () => _notify(context, panel.name),
+              onTap: () => _openPanelDetails(context, panel, color),
             );
           }),
       ],
@@ -674,6 +693,212 @@ class _PackagesBanner extends StatelessWidget {
               Icon(Icons.chevron_right_rounded, color: color),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PanelDetailsSheet extends StatelessWidget {
+  final LabPanel panel;
+  final List<LabTest> includedTests;
+  final Color color;
+
+  const _PanelDetailsSheet({
+    required this.panel,
+    required this.includedTests,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final price = double.tryParse(panel.price) ?? 0;
+    final savings = double.tryParse(panel.savings) ?? 0;
+    final alaCarteTotal = includedTests.fold<double>(0, (sum, t) => sum + t.price);
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 15, 20, 25),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: color.withOpacity(.12),
+                  child: Icon(Icons.medical_information_outlined, color: color, size: 28),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        panel.name,
+                        style: const TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF12366B),
+                        ),
+                      ),
+                      Text(
+                        '${includedTests.length} tests included',
+                        style: const TextStyle(
+                          color: Color(0xFF56718E),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (panel.description.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                panel.description,
+                style: const TextStyle(height: 1.5, color: Color(0xFF526A83)),
+              ),
+            ],
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: color.withOpacity(.06),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: color.withOpacity(.25)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Package price',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF6B8098)),
+                        ),
+                        Text(
+                          'NPR ${price.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (savings > 0)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'NPR ${alaCarteTotal.toStringAsFixed(0)} individually',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF6B8098),
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                        Text(
+                          'You save NPR ${savings.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF22A06B),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'What\'s included',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF12366B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...includedTests.map((test) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: test.iconColor.withOpacity(.10),
+                        child: Icon(test.icon, color: test.iconColor, size: 18),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              test.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF12366B),
+                              ),
+                            ),
+                            Text(
+                              test.description.isNotEmpty ? test.description : test.subtitle,
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF6B8098)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'NPR ${test.price.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF6B8098),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${panel.name} — contact us to book this package')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: color,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text('Book This Package'),
+              ),
+            ),
+          ],
         ),
       ),
     );
