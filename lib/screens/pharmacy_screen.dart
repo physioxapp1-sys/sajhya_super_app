@@ -1,7 +1,33 @@
 import 'package:flutter/material.dart';
 
+import 'prescriptions_screen.dart';
+
 class PharmacyScreen extends StatelessWidget {
   const PharmacyScreen({super.key});
+
+  // TODO: replace with the patient's real active prescriptions once the
+  // pharmacy backend is wired (see how lab_test_screen.dart pulls from a
+  // live API for the equivalent pattern).
+  static const List<RxItem> _activePrescriptions = [
+    RxItem(
+      name: 'Amoxicillin 500mg (Refill #2)',
+      statusLabel: 'Preparing',
+      progressPercent: 80,
+      eta: 'Est. Ready: Today at 4:30 PM',
+    ),
+    RxItem(
+      name: 'Metformin 500mg',
+      statusLabel: 'Ready for pickup',
+      progressPercent: 100,
+      eta: 'Ready now',
+    ),
+    RxItem(
+      name: 'Cetirizine 10mg',
+      statusLabel: 'Preparing',
+      progressPercent: 40,
+      eta: 'Est. Ready: Tomorrow, 10:00 AM',
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +79,7 @@ class PharmacyScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 1. Anxiety Reduction Section: Live Rx Status Tracker
-            _buildRxStatusCard(),
+            _buildRxStatusCard(context),
             const SizedBox(height: 20),
 
             // 2. Cognitive Simplicity Section: Quick Actions Grid (Max 4 items)
@@ -86,36 +112,80 @@ class PharmacyScreen extends StatelessWidget {
 
   // --- Widget Builders ---
 
-  Widget _buildRxStatusCard() {
+  Widget _buildRxStatusCard(BuildContext context) {
+    if (_activePrescriptions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final headline = _activePrescriptions.first;
+    final moreCount = _activePrescriptions.length - 1;
+
+    void openAll() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const PrescriptionsScreen(prescriptions: _activePrescriptions),
+        ),
+      );
+    }
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('CURRENT RX STATUS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal)),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
-                  child: Text('PREPARING (80%)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: openAll,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('CURRENT RX STATUS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
+                    child: Text(
+                      '${headline.statusLabel.toUpperCase()} (${headline.progressPercent}%)',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(headline.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(headline.eta, style: const TextStyle(color: Colors.black54)),
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: headline.progressPercent / 100,
+                  minHeight: 8,
+                  backgroundColor: const Color(0xFFE0E0E0),
+                  color: Colors.teal,
+                ),
+              ),
+              if (moreCount > 0) ...[
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '+$moreCount more prescription${moreCount == 1 ? '' : 's'} in progress',
+                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                    TextButton(
+                      onPressed: openAll,
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(50, 30)),
+                      child: const Text('View All', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ),
               ],
-            ),
-            const SizedBox(height: 12),
-            const Text('Amoxicillin 500mg (Refill #2)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            const Text('Est. Ready: Today at 4:30 PM', style: TextStyle(color: Colors.black54)),
-            const SizedBox(height: 16),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: const LinearProgressIndicator(value: 0.8, minHeight: 8, backgroundColor: Color(0xFFE0E0E0), color: Colors.teal),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
