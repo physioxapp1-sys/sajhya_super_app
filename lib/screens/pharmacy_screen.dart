@@ -14,6 +14,25 @@ class PharmacyScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.teal),
           onPressed: () => Navigator.maybePop(context),
         ),
+        titleSpacing: 0,
+        title: Container(
+          height: 42,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(21),
+            border: Border.all(color: Colors.black12),
+          ),
+          child: const TextField(
+            style: TextStyle(fontSize: 14),
+            decoration: InputDecoration(
+              isDense: true,
+              border: InputBorder.none,
+              hintText: 'Search medicines, prescriptions...',
+              hintStyle: TextStyle(fontSize: 13, color: Colors.black45),
+              prefixIcon: Icon(Icons.search_rounded, size: 20, color: Colors.teal),
+            ),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none, color: Colors.teal, size: 28),
@@ -33,18 +52,6 @@ class PharmacyScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Welcome Section
-            const Text(
-              'Welcome back, Sarah!',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black87),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Your health dashboard today',
-              style: TextStyle(fontSize: 16, color: Colors.black54),
-            ),
-            const SizedBox(height: 20),
-
             // 1. Anxiety Reduction Section: Live Rx Status Tracker
             _buildRxStatusCard(),
             const SizedBox(height: 20),
