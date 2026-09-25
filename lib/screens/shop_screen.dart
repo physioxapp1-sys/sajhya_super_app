@@ -156,7 +156,7 @@ class ShopScreen extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               cat['label'] as String,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black70),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black54),
             ),
           ],
         );
