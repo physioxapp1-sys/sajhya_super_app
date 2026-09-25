@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'screens/exercise_video_screen.dart';
 import 'screens/lab_test_screen.dart';
 import 'screens/pharmacy_screen.dart';
 import 'screens/shop_screen.dart';
@@ -100,6 +101,7 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
       'Lab Test' => const LabTestScreen(),
       'Pharmacy' => const PharmacyScreen(),
       'Shop' => const ShopScreen(),
+      'Exercise Videos' => const ExerciseVideoScreen(),
       _ => null,
     };
 

@@ -45,4 +45,35 @@ class ApiService {
       throw Exception('Network error: ${e.message}');
     }
   }
+
+  // ── Exercise library (browse, no login required) ──────────────────────────
+
+  Future<List<Map<String, dynamic>>> getBrowseRegions() async {
+    try {
+      final r = await _dio.get('/api/browse/public-regions/');
+      final d = jsonDecode(r.data as String);
+      return List<Map<String, dynamic>>.from(d['regions']);
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw Exception('Could not load exercise regions (${e.response?.statusCode})');
+      }
+      throw Exception('Network error: ${e.message}');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getBrowseExercises(int subregionId) async {
+    try {
+      final r = await _dio.get(
+        '/api/browse/public-exercises/',
+        queryParameters: {'subregion_id': subregionId},
+      );
+      final d = jsonDecode(r.data as String);
+      return List<Map<String, dynamic>>.from(d['exercises']);
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw Exception('Could not load exercises (${e.response?.statusCode})');
+      }
+      throw Exception('Network error: ${e.message}');
+    }
+  }
 }
