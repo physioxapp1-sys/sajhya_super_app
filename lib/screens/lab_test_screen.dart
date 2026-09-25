@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/api_service.dart';
+
 class LabTestScreen extends StatefulWidget {
   const LabTestScreen({super.key});
 
@@ -10,62 +12,9 @@ class LabTestScreen extends StatefulWidget {
 class _LabTestScreenState extends State<LabTestScreen> {
   final TextEditingController _searchController = TextEditingController();
 
-  final List<LabTest> popularTests = const [
-    LabTest(
-      name: 'HbA1c',
-      patientName: 'Average Blood Sugar Test',
-      description: 'Shows your average blood sugar over the past 2–3 months.',
-      sample: 'Blood',
-      turnaround: '1 day',
-      icon: Icons.bloodtype_outlined,
-      iconColor: Color(0xFFE45555),
-    ),
-    LabTest(
-      name: 'Complete Blood Count (CBC)',
-      patientName: 'Blood Cell Test',
-      description: 'Checks different types of blood cells.',
-      sample: 'Blood',
-      turnaround: '1 day',
-      icon: Icons.scatter_plot_outlined,
-      iconColor: Color(0xFFD94B4B),
-    ),
-    LabTest(
-      name: 'TSH',
-      patientName: 'Thyroid Function Test',
-      description: 'Checks how well your thyroid is working.',
-      sample: 'Blood',
-      turnaround: '1 day',
-      icon: Icons.monitor_heart_outlined,
-      iconColor: Color(0xFFE66B6B),
-    ),
-    LabTest(
-      name: 'LFT',
-      patientName: 'Liver Function Test',
-      description: 'Checks how well your liver is working.',
-      sample: 'Blood',
-      turnaround: '1 day',
-      icon: Icons.medical_services_outlined,
-      iconColor: Color(0xFFD85656),
-    ),
-    LabTest(
-      name: 'KFT',
-      patientName: 'Kidney Function Test',
-      description: 'Checks how well your kidneys are working.',
-      sample: 'Blood',
-      turnaround: '1 day',
-      icon: Icons.water_drop_outlined,
-      iconColor: Color(0xFFC84A4A),
-    ),
-    LabTest(
-      name: 'Lipid Profile',
-      patientName: 'Cholesterol & Fat Test',
-      description: 'Checks cholesterol and fats in your blood.',
-      sample: 'Blood',
-      turnaround: '1 day',
-      icon: Icons.favorite_outline,
-      iconColor: Color(0xFFE05252),
-    ),
-  ];
+  List<LabTest> _tests = [];
+  bool _loading = true;
+  String? _error;
 
   final List<BodySystem> bodySystems = const [
     BodySystem('Blood', Icons.bloodtype_outlined),
@@ -87,7 +36,13 @@ class _LabTestScreenState extends State<LabTestScreen> {
     Symptom('Weight changes', Icons.monitor_weight_outlined),
   ];
 
-  final Set<String> selectedTests = {};
+  final Set<int> selectedTests = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTests();
+  }
 
   @override
   void dispose() {
@@ -95,13 +50,32 @@ class _LabTestScreenState extends State<LabTestScreen> {
     super.dispose();
   }
 
+  Future<void> _loadTests() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final raw = await ApiService().getLabTests();
+      setState(() {
+        _tests = raw.map(LabTest.fromJson).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
   void _searchTests(String value) {
     final query = value.trim().toLowerCase();
     if (query.isEmpty) return;
 
-    final results = popularTests.where((test) {
+    final results = _tests.where((test) {
       return test.name.toLowerCase().contains(query) ||
-          test.patientName.toLowerCase().contains(query) ||
+          test.subtitle.toLowerCase().contains(query) ||
           test.description.toLowerCase().contains(query);
     }).toList();
 
@@ -121,10 +95,10 @@ class _LabTestScreenState extends State<LabTestScreen> {
 
   void _toggleTest(LabTest test) {
     setState(() {
-      if (selectedTests.contains(test.name)) {
-        selectedTests.remove(test.name);
+      if (selectedTests.contains(test.id)) {
+        selectedTests.remove(test.id);
       } else {
-        selectedTests.add(test.name);
+        selectedTests.add(test.id);
       }
     });
   }
@@ -136,7 +110,7 @@ class _LabTestScreenState extends State<LabTestScreen> {
       backgroundColor: Colors.white,
       builder: (_) => _TestDetailsSheet(
         test: test,
-        isSelected: selectedTests.contains(test.name),
+        isSelected: selectedTests.contains(test.id),
         onAdd: () {
           _toggleTest(test);
           Navigator.pop(context);
@@ -230,30 +204,72 @@ class _LabTestScreenState extends State<LabTestScreen> {
                 onViewAll: () {},
               ),
               const SizedBox(height: 12),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: isWide ? 2 : 1,
-                  crossAxisSpacing: 14,
-                  mainAxisSpacing: 14,
-                  childAspectRatio: isWide ? 2.55 : 1.85,
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_error != null)
+                _ErrorState(message: _error!, onRetry: _loadTests)
+              else if (_tests.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 30),
+                  child: Center(child: Text('No tests available right now.')),
+                )
+              else
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: isWide ? 2 : 1,
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 14,
+                    childAspectRatio: isWide ? 2.55 : 1.7,
+                  ),
+                  itemCount: _tests.length,
+                  itemBuilder: (_, index) {
+                    final test = _tests[index];
+                    return _LabTestCard(
+                      test: test,
+                      selected: selectedTests.contains(test.id),
+                      onView: () => _showTestDetails(test),
+                      onAdd: () => _toggleTest(test),
+                    );
+                  },
                 ),
-                itemCount: popularTests.length,
-                itemBuilder: (_, index) {
-                  final test = popularTests[index];
-                  return _LabTestCard(
-                    test: test,
-                    selected: selectedTests.contains(test.name),
-                    onView: () => _showTestDetails(test),
-                    onAdd: () => _toggleTest(test),
-                  );
-                },
-              ),
               const SizedBox(height: 20),
               _SafetyBanner(),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 30),
+      child: Center(
+        child: Column(
+          children: [
+            const Icon(Icons.wifi_off_rounded, color: Color(0xFF9AAFC4), size: 36),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF6B8098)),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
         ),
       ),
     );
@@ -636,24 +652,34 @@ class _LabTestCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      test.patientName,
+                      test.subtitle,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF4B6786),
                       ),
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      test.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        height: 1.35,
-                        color: Color(0xFF6B8098),
+                    if (test.description.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        test.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          height: 1.35,
+                          color: Color(0xFF6B8098),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
+                ),
+              ),
+              Text(
+                'NPR ${test.price.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF22A06B),
                 ),
               ),
             ],
@@ -667,14 +693,17 @@ class _LabTestCard extends StatelessWidget {
                 color: Color(0xFF5B7695),
               ),
               const SizedBox(width: 4),
-              Text(
-                'Sample: ${test.sample}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF5B7695),
+              Expanded(
+                child: Text(
+                  'Sample: ${test.sample}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF5B7695),
+                  ),
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 8),
               const Icon(
                 Icons.access_time_rounded,
                 size: 15,
@@ -688,11 +717,11 @@ class _LabTestCard extends StatelessWidget {
                   color: Color(0xFF5B7695),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 10),
               OutlinedButton(
                 onPressed: onView,
                 style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(65, 34),
+                  minimumSize: const Size(60, 34),
                   padding: const EdgeInsets.symmetric(horizontal: 13),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -780,7 +809,7 @@ class _SearchResultsSheet extends StatelessWidget {
   final List<LabTest> results;
   final Function(LabTest) onView;
   final Function(LabTest) onAdd;
-  final Set<String> selectedTests;
+  final Set<int> selectedTests;
 
   const _SearchResultsSheet({
     required this.query,
@@ -841,7 +870,7 @@ class _SearchResultsSheet extends StatelessWidget {
                     test.name,
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  subtitle: Text(test.patientName),
+                  subtitle: Text(test.subtitle),
                   trailing: Wrap(
                     children: [
                       IconButton(
@@ -851,10 +880,10 @@ class _SearchResultsSheet extends StatelessWidget {
                       IconButton(
                         onPressed: () => onAdd(test),
                         icon: Icon(
-                          selectedTests.contains(test.name)
+                          selectedTests.contains(test.id)
                               ? Icons.check_circle
                               : Icons.add_circle_outline,
-                          color: selectedTests.contains(test.name)
+                          color: selectedTests.contains(test.id)
                               ? Colors.green
                               : const Color(0xFF2384E8),
                         ),
@@ -921,7 +950,7 @@ class _TestDetailsSheet extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        test.patientName,
+                        test.subtitle,
                         style: const TextStyle(
                           color: Color(0xFF56718E),
                           fontWeight: FontWeight.w600,
@@ -930,26 +959,36 @@ class _TestDetailsSheet extends StatelessWidget {
                     ],
                   ),
                 ),
+                Text(
+                  'NPR ${test.price.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF22A06B),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 24),
-            const Text(
-              'What is this test?',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF12366B),
+            if (test.description.isNotEmpty) ...[
+              const Text(
+                'What is this test?',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF12366B),
+                ),
               ),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              test.description,
-              style: const TextStyle(
-                height: 1.5,
-                color: Color(0xFF526A83),
+              const SizedBox(height: 7),
+              Text(
+                test.description,
+                style: const TextStyle(
+                  height: 1.5,
+                  color: Color(0xFF526A83),
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
+            ],
             _InfoRow(
               icon: Icons.water_drop_outlined,
               title: 'Sample',
@@ -1196,23 +1235,53 @@ class _SheetHandle extends StatelessWidget {
 }
 
 class LabTest {
+  final int id;
   final String name;
-  final String patientName;
+  final String subtitle;
   final String description;
   final String sample;
   final String turnaround;
+  final double price;
   final IconData icon;
   final Color iconColor;
 
   const LabTest({
+    required this.id,
     required this.name,
-    required this.patientName,
+    required this.subtitle,
     required this.description,
     required this.sample,
     required this.turnaround,
+    required this.price,
     required this.icon,
     required this.iconColor,
   });
+
+  factory LabTest.fromJson(Map<String, dynamic> json) {
+    final category = json['category'] as String? ?? 'other';
+    final style = _categoryStyle[category] ?? _categoryStyle['other']!;
+    return LabTest(
+      id: json['id'] as int,
+      name: json['name'] as String? ?? '',
+      subtitle: json['category_display'] as String? ?? '',
+      description: json['prep_instructions'] as String? ?? '',
+      sample: json['sample_type'] as String? ?? 'Not specified',
+      turnaround: json['turnaround_time'] as String? ?? 'Not specified',
+      price: double.tryParse(json['price']?.toString() ?? '0') ?? 0,
+      icon: style.$1,
+      iconColor: style.$2,
+    );
+  }
+
+  static const Map<String, (IconData, Color)> _categoryStyle = {
+    'hematology': (Icons.bloodtype_outlined, Color(0xFFE45555)),
+    'biochemistry': (Icons.science_outlined, Color(0xFF7754C7)),
+    'hormonal': (Icons.monitor_heart_outlined, Color(0xFFE66B6B)),
+    'serology': (Icons.coronavirus_outlined, Color(0xFF35A981)),
+    'electrolytes': (Icons.water_drop_outlined, Color(0xFF3288E8)),
+    'urine': (Icons.opacity_outlined, Color(0xFFD9A441)),
+    'other': (Icons.medical_information_outlined, Color(0xFF5B7695)),
+  };
 }
 
 class BodySystem {
