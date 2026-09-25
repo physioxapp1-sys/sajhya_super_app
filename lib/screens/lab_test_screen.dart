@@ -116,6 +116,15 @@ class _LabTestScreenState extends State<LabTestScreen> {
     );
   }
 
+  Widget _buildTestCard(LabTest test) {
+    return _LabTestCard(
+      test: test,
+      selected: selectedTests.contains(test.id),
+      onView: () => _showTestDetails(test),
+      onAdd: () => _toggleTest(test),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
@@ -131,11 +140,26 @@ class _LabTestScreenState extends State<LabTestScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Navigator.maybePop(context),
         ),
-        title: const Text(
-          'Find a Lab Test',
-          style: TextStyle(
-            color: Color(0xFF12366B),
-            fontWeight: FontWeight.w700,
+        titleSpacing: 0,
+        title: Container(
+          height: 42,
+          margin: const EdgeInsets.only(right: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F6FB),
+            borderRadius: BorderRadius.circular(21),
+          ),
+          child: TextField(
+            controller: _searchController,
+            textInputAction: TextInputAction.search,
+            onSubmitted: _searchTests,
+            style: const TextStyle(fontSize: 14),
+            decoration: const InputDecoration(
+              isDense: true,
+              border: InputBorder.none,
+              hintText: 'Search test name or abbreviation',
+              hintStyle: TextStyle(fontSize: 13, color: Color(0xFF7890AA)),
+              prefixIcon: Icon(Icons.search_rounded, size: 20, color: Color(0xFF52749C)),
+            ),
           ),
         ),
       ),
@@ -150,11 +174,6 @@ class _LabTestScreenState extends State<LabTestScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _HeroSection(
-                controller: _searchController,
-                onSearch: _searchTests,
-              ),
-              const SizedBox(height: 28),
               _SectionHeader(
                 title: 'Popular / Common Tests',
                 icon: Icons.local_fire_department_rounded,
@@ -173,26 +192,36 @@ class _LabTestScreenState extends State<LabTestScreen> {
                   padding: EdgeInsets.symmetric(vertical: 30),
                   child: Center(child: Text('No tests available right now.')),
                 )
+              else if (isWide)
+                Column(
+                  children: [
+                    for (int i = 0; i < _popularTests.length; i += 2)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: _buildTestCard(_popularTests[i])),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: i + 1 < _popularTests.length
+                                  ? _buildTestCard(_popularTests[i + 1])
+                                  : const SizedBox(),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                )
               else
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: isWide ? 2 : 1,
-                    crossAxisSpacing: 14,
-                    mainAxisSpacing: 14,
-                    childAspectRatio: isWide ? 2.55 : 1.7,
-                  ),
-                  itemCount: _popularTests.length,
-                  itemBuilder: (_, index) {
-                    final test = _popularTests[index];
-                    return _LabTestCard(
-                      test: test,
-                      selected: selectedTests.contains(test.id),
-                      onView: () => _showTestDetails(test),
-                      onAdd: () => _toggleTest(test),
-                    );
-                  },
+                Column(
+                  children: [
+                    for (final test in _popularTests)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: _buildTestCard(test),
+                      ),
+                  ],
                 ),
               const SizedBox(height: 24),
               _PackagesBanner(panels: _panels, allTests: _tests),
@@ -230,98 +259,6 @@ class _ErrorState extends StatelessWidget {
             OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _HeroSection extends StatelessWidget {
-  final TextEditingController controller;
-  final ValueChanged<String> onSearch;
-
-  const _HeroSection({
-    required this.controller,
-    required this.onSearch,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFEAF5FF), Color(0xFFF5FAFF)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFD9EBFF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Find a Lab Test',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF12366B),
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Search by test name or abbreviation.',
-            style: TextStyle(
-              fontSize: 15,
-              color: Color(0xFF456789),
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 18),
-          TextField(
-            controller: controller,
-            textInputAction: TextInputAction.search,
-            onSubmitted: onSearch,
-            decoration: InputDecoration(
-              hintText:
-                  'Search test name or abbreviation (e.g. HbA1c, CBC, TSH)',
-              prefixIcon: const Icon(
-                Icons.search_rounded,
-                color: Color(0xFF52749C),
-              ),
-              suffixIcon: Padding(
-                padding: const EdgeInsets.all(6),
-                child: ElevatedButton(
-                  onPressed: () => onSearch(controller.text),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2384E8),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: const Text('Search'),
-                ),
-              ),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(color: Color(0xFFD4E5F7)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(color: Color(0xFFD4E5F7)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(
-                  color: Color(0xFF2384E8),
-                  width: 1.5,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -449,7 +386,7 @@ class _LabTestCard extends StatelessWidget {
               ),
             ],
           ),
-          const Spacer(),
+          const SizedBox(height: 12),
           Row(
             children: [
               const Icon(
