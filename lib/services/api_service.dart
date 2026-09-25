@@ -76,4 +76,20 @@ class ApiService {
       throw Exception('Network error: ${e.message}');
     }
   }
+
+  Future<List<Map<String, dynamic>>> searchExercises(String query) async {
+    try {
+      final r = await _dio.get(
+        '/api/browse/public-exercises/search/',
+        queryParameters: {'q': query},
+      );
+      final d = jsonDecode(r.data as String);
+      return List<Map<String, dynamic>>.from(d['exercises']);
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw Exception('Could not search exercises (${e.response?.statusCode})');
+      }
+      throw Exception('Network error: ${e.message}');
+    }
+  }
 }

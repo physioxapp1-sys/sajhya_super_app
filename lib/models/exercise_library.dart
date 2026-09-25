@@ -36,6 +36,13 @@ class LibraryExercise {
   final String descriptionNepali;
   final List<StepImage> stepImages;
 
+  // Only present on search results (patient_api_browse_exercises_search_public),
+  // which span multiple sub-regions and so need to say where each match
+  // lives; null when fetched via a sub-region-scoped browse call.
+  final int? subRegionId;
+  final String? subRegionName;
+  final String? regionName;
+
   const LibraryExercise({
     required this.id,
     required this.name,
@@ -51,6 +58,9 @@ class LibraryExercise {
     required this.description,
     required this.descriptionNepali,
     required this.stepImages,
+    this.subRegionId,
+    this.subRegionName,
+    this.regionName,
   });
 
   factory LibraryExercise.fromJson(Map<String, dynamic> json) {
@@ -72,6 +82,9 @@ class LibraryExercise {
               .map((e) => StepImage.fromJson(e as Map<String, dynamic>))
               .toList()
             ..sort((a, b) => a.order.compareTo(b.order))),
+      subRegionId: json['sub_region_id'] as int?,
+      subRegionName: json['sub_region_name'] as String?,
+      regionName: json['region_name'] as String?,
     );
   }
 }

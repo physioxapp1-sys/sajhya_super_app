@@ -1,8 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/exercise_library.dart';
 import '../services/api_service.dart';
+import '../widgets/exercise_card.dart';
 import 'exercise_list_screen.dart';
+
+// The 5 top-level regions are stable reference content (they essentially
+// never change, unlike the exercises within them), so they're shown
+// immediately in this fixed order/wording instead of waiting on the
+// network -- subregions and exercise counts still come from the live API
+// and get merged in once that response arrives.
+const List<(int id, String displayName)> _kRegions = [
+  (1, 'Head & Neck'),
+  (2, 'Spine'),
+  (5, 'Trunk'),
+  (3, 'Upper Limb'),
+  (4, 'Lower Limb'),
+];
 
 class ExerciseVideoScreen extends StatelessWidget {
   const ExerciseVideoScreen({super.key});
@@ -27,15 +43,15 @@ class ExerciseVideoScreen extends StatelessWidget {
             unselectedLabelColor: Colors.black54,
             indicatorColor: Colors.teal,
             tabs: [
-              Tab(text: 'Prescribed'),
               Tab(text: 'Library'),
+              Tab(text: 'Prescribed'),
             ],
           ),
         ),
         body: const TabBarView(
           children: [
-            _PrescribedTab(),
             _LibraryTab(),
+            _PrescribedTab(),
           ],
         ),
       ),
@@ -82,9 +98,17 @@ class _LibraryTab extends StatefulWidget {
 }
 
 class _LibraryTabState extends State<_LibraryTab> with AutomaticKeepAliveClientMixin {
-  List<RegionSummary> _regions = [];
-  bool _loading = true;
-  String? _error;
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
+
+  Map<int, List<SubRegionSummary>> _subregionsByRegionId = {};
+  bool _loadingRegions = true;
+  String? _regionsError;
+
+  String _query = '';
+  bool _searching = false;
+  String? _searchError;
+  List<LibraryExercise>? _searchResults;
 
   @override
   bool get wantKeepAlive => true;
@@ -92,24 +116,71 @@ class _LibraryTabState extends State<_LibraryTab> with AutomaticKeepAliveClientM
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadSubregions();
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSubregions() async {
     setState(() {
-      _loading = true;
-      _error = null;
+      _loadingRegions = true;
+      _regionsError = null;
     });
     try {
       final raw = await ApiService().getBrowseRegions();
+      final regions = raw.map(RegionSummary.fromJson).toList();
+      final map = <int, List<SubRegionSummary>>{
+        for (final r in regions) r.id: r.subRegions,
+      };
       setState(() {
-        _regions = raw.map(RegionSummary.fromJson).toList();
-        _loading = false;
+        _subregionsByRegionId = map;
+        _loadingRegions = false;
       });
     } catch (e) {
       setState(() {
-        _error = e.toString();
-        _loading = false;
+        _regionsError = e.toString();
+        _loadingRegions = false;
+      });
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    final query = value.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _query = '';
+        _searchResults = null;
+        _searchError = null;
+      });
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 400), () => _runSearch(query));
+  }
+
+  Future<void> _runSearch(String query) async {
+    setState(() {
+      _query = query;
+      _searching = true;
+      _searchError = null;
+    });
+    try {
+      final raw = await ApiService().searchExercises(query);
+      if (!mounted) return;
+      setState(() {
+        _searchResults = raw.map(LibraryExercise.fromJson).toList();
+        _searching = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _searchError = e.toString();
+        _searching = false;
       });
     }
   }
@@ -118,10 +189,47 @@ class _LibraryTabState extends State<_LibraryTab> with AutomaticKeepAliveClientM
   Widget build(BuildContext context) {
     super.build(context);
 
-    if (_loading) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border(bottom: BorderSide(color: Colors.black.withOpacity(0.06))),
+          ),
+          child: Container(
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F6FB),
+              borderRadius: BorderRadius.circular(21),
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              style: const TextStyle(fontSize: 14),
+              decoration: const InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: 'Search exercises (e.g. neck stretch, squat)',
+                hintStyle: TextStyle(fontSize: 13, color: Color(0xFF7890AA)),
+                prefixIcon: Icon(Icons.search_rounded, size: 20, color: Colors.teal),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: _query.isNotEmpty ? _buildSearchResults() : _buildRegionList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchResults() {
+    if (_searching) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_error != null) {
+    if (_searchError != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -130,43 +238,97 @@ class _LibraryTabState extends State<_LibraryTab> with AutomaticKeepAliveClientM
             children: [
               Icon(Icons.wifi_off_rounded, color: Colors.grey[400], size: 36),
               const SizedBox(height: 10),
-              Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
+              Text(_searchError!, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
               const SizedBox(height: 12),
-              OutlinedButton(onPressed: _load, child: const Text('Retry')),
+              OutlinedButton(onPressed: () => _runSearch(_query), child: const Text('Retry')),
             ],
           ),
         ),
       );
     }
-    if (_regions.isEmpty) {
-      return Center(child: Text('No exercise regions available yet.', style: TextStyle(color: Colors.grey[600])));
+    final results = _searchResults ?? [];
+    if (results.isEmpty) {
+      return Center(
+        child: Text('No exercises match "$_query".', style: TextStyle(color: Colors.grey[600])),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      itemCount: results.length,
+      itemBuilder: (_, index) {
+        final exercise = results[index];
+        final location = [exercise.regionName, exercise.subRegionName]
+            .where((s) => (s ?? '').trim().isNotEmpty)
+            .join(' > ');
+        return ExerciseCard(exercise: exercise, locationLabel: location.isEmpty ? null : location);
+      },
+    );
+  }
+
+  Widget _buildRegionList() {
+    if (_regionsError != null && _subregionsByRegionId.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.wifi_off_rounded, color: Colors.grey[400], size: 36),
+              const SizedBox(height: 10),
+              Text(_regionsError!, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
+              const SizedBox(height: 12),
+              OutlinedButton(onPressed: _loadSubregions, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
     }
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: _regions.length,
-      itemBuilder: (_, index) => _RegionTile(region: _regions[index]),
+      itemCount: _kRegions.length,
+      itemBuilder: (_, index) {
+        final (id, name) = _kRegions[index];
+        return _RegionTile(
+          name: name,
+          subRegions: _subregionsByRegionId[id],
+          loading: _loadingRegions && _subregionsByRegionId[id] == null,
+        );
+      },
     );
   }
 }
 
 class _RegionTile extends StatelessWidget {
-  final RegionSummary region;
-  const _RegionTile({required this.region});
+  final String name;
+  final List<SubRegionSummary>? subRegions;
+  final bool loading;
+
+  const _RegionTile({required this.name, required this.subRegions, required this.loading});
 
   @override
   Widget build(BuildContext context) {
-    final browsable = region.subRegions.where((s) => s.exerciseCount > 0).toList();
-    if (browsable.isEmpty) return const SizedBox.shrink();
+    final browsable = (subRegions ?? []).where((s) => s.exerciseCount > 0).toList();
 
     return ExpansionTile(
       title: Text(
-        region.name,
+        name,
         style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.black87, fontSize: 15),
       ),
       childrenPadding: const EdgeInsets.only(bottom: 4),
-      children: browsable
-          .map((sub) => ListTile(
+      children: [
+        if (loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+          )
+        else if (browsable.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+            child: Text('No exercises here yet.', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+          )
+        else
+          ...browsable.map((sub) => ListTile(
                 dense: true,
                 contentPadding: const EdgeInsets.only(left: 32, right: 16),
                 leading: const Icon(Icons.fitness_center, size: 18, color: Colors.teal),
@@ -181,8 +343,8 @@ class _RegionTile extends StatelessWidget {
                     builder: (_) => ExerciseListScreen(subregionId: sub.id, subregionName: sub.name),
                   ),
                 ),
-              ))
-          .toList(),
+              )),
+      ],
     );
   }
 }
