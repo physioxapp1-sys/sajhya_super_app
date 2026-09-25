@@ -43,6 +43,8 @@ class PharmacyScreen extends StatelessWidget {
         titleSpacing: 0,
         title: Container(
           height: 42,
+          margin: const EdgeInsets.only(right: 16),
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(21),
@@ -59,19 +61,6 @@ class PharmacyScreen extends StatelessWidget {
             ),
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.teal, size: 28),
-            onPressed: () {},
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.teal,
-              child: Text('SJ', style: TextStyle(color: Colors.white)),
-            ),
-          )
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

@@ -144,6 +144,7 @@ class _LabTestScreenState extends State<LabTestScreen> {
         title: Container(
           height: 42,
           margin: const EdgeInsets.only(right: 16),
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFF1F6FB),
             borderRadius: BorderRadius.circular(21),
