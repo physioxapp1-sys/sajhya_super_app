@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import 'screens/lab_test_screen.dart';
 import 'screens/pharmacy_screen.dart';
+import 'screens/shop_screen.dart';
 
 void main() => runApp(const SajhyaApp());
 
@@ -98,6 +99,7 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
     final Widget? screen = switch (service.title) {
       'Lab Test' => const LabTestScreen(),
       'Pharmacy' => const PharmacyScreen(),
+      'Shop' => const ShopScreen(),
       _ => null,
     };
 
