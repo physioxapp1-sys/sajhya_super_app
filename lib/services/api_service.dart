@@ -32,4 +32,17 @@ class ApiService {
       throw Exception('Network error: ${e.message}');
     }
   }
+
+  Future<List<Map<String, dynamic>>> getLabPanels() async {
+    try {
+      final r = await _dio.get('/api/lab/public-panels/');
+      final d = jsonDecode(r.data as String);
+      return List<Map<String, dynamic>>.from(d['lab_panels']);
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw Exception('Could not load lab packages (${e.response?.statusCode})');
+      }
+      throw Exception('Network error: ${e.message}');
+    }
+  }
 }

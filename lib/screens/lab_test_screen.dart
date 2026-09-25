@@ -14,6 +14,7 @@ class _LabTestScreenState extends State<LabTestScreen> {
 
   List<LabTest> _tests = [];
   List<LabTest> _popularTests = [];
+  List<LabPanel> _panels = [];
   bool _loading = true;
   String? _error;
 
@@ -23,6 +24,7 @@ class _LabTestScreenState extends State<LabTestScreen> {
   void initState() {
     super.initState();
     _loadTests();
+    _loadPanels();
   }
 
   @override
@@ -51,6 +53,17 @@ class _LabTestScreenState extends State<LabTestScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<void> _loadPanels() async {
+    // Best-effort: no active panels yet is expected until seeded, so any
+    // failure here just leaves the banner on its static illustrative list
+    // rather than blocking or erroring the whole screen.
+    try {
+      final raw = await ApiService().getLabPanels();
+      if (!mounted) return;
+      setState(() => _panels = raw.map(LabPanel.fromJson).toList());
+    } catch (_) {}
   }
 
   void _searchTests(String value) {
@@ -182,7 +195,7 @@ class _LabTestScreenState extends State<LabTestScreen> {
                   },
                 ),
               const SizedBox(height: 24),
-              const _PackagesBanner(),
+              _PackagesBanner(panels: _panels),
               const SizedBox(height: 20),
               _SafetyBanner(),
             ],
@@ -508,9 +521,14 @@ class _LabTestCard extends StatelessWidget {
 }
 
 class _PackagesBanner extends StatelessWidget {
-  const _PackagesBanner();
+  final List<LabPanel> panels;
 
-  static const List<(String, String, IconData, Color)> _packages = [
+  const _PackagesBanner({required this.panels});
+
+  // Illustrative fallback shown until real LabTestPanel rows exist on the
+  // backend (see lab_app.management.commands.seed_lab_panels) -- matches
+  // the packages sajhya.com's own site copy already promises.
+  static const List<(String, String, IconData, Color)> _placeholderPackages = [
     (
       'Diabetes Panel',
       'Fasting sugar, PP sugar & HbA1c bundled together.',
@@ -529,6 +547,13 @@ class _PackagesBanner extends StatelessWidget {
       Icons.health_and_safety_outlined,
       Color(0xFF2384E8),
     ),
+  ];
+
+  static const List<Color> _panelColors = [
+    Color(0xFF7754C7),
+    Color(0xFFE07A3F),
+    Color(0xFF2384E8),
+    Color(0xFF35A981),
   ];
 
   void _notify(BuildContext context, String name) {
@@ -551,57 +576,106 @@ class _PackagesBanner extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        ..._packages.map((pkg) {
-          final (name, description, icon, color) = pkg;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
+        if (panels.isEmpty)
+          ..._placeholderPackages.map((pkg) {
+            final (name, description, icon, color) = pkg;
+            return _packageCard(
+              context,
+              name: name,
+              description: description,
+              icon: icon,
+              color: color,
               onTap: () => _notify(context, name),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(.06),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: color.withOpacity(.25)),
-                ),
-                child: Row(
+            );
+          })
+        else
+          ...panels.asMap().entries.map((entry) {
+            final panel = entry.value;
+            final color = _panelColors[entry.key % _panelColors.length];
+            final savings = double.tryParse(panel.savings) ?? 0;
+            final description = savings > 0
+                ? '${panel.description} Save NPR ${savings.toStringAsFixed(0)} vs individual tests.'
+                : panel.description;
+            return _packageCard(
+              context,
+              name: panel.name,
+              description: description,
+              icon: Icons.medical_information_outlined,
+              color: color,
+              price: panel.price,
+              onTap: () => _notify(context, panel.name),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _packageCard(
+    BuildContext context, {
+    required String name,
+    required String description,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    String? price,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: color.withOpacity(.06),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withOpacity(.25)),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: color.withOpacity(.12),
+                child: Icon(icon, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      backgroundColor: color.withOpacity(.12),
-                      child: Icon(icon, color: color),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF12366B),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            description,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF6B8098),
-                            ),
-                          ),
-                        ],
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF12366B),
                       ),
                     ),
-                    Icon(Icons.chevron_right_rounded, color: color),
+                    const SizedBox(height: 2),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF6B8098),
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
-          );
-        }),
-      ],
+              if (price != null) ...[
+                Text(
+                  'NPR ${double.tryParse(price)?.toStringAsFixed(0) ?? price}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Icon(Icons.chevron_right_rounded, color: color),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -983,4 +1057,33 @@ class LabTest {
     'urine': (Icons.opacity_outlined, Color(0xFFD9A441)),
     'other': (Icons.medical_information_outlined, Color(0xFF5B7695)),
   };
+}
+
+class LabPanel {
+  final int id;
+  final String name;
+  final String description;
+  final String price;
+  final String savings;
+  final List<int> testIds;
+
+  const LabPanel({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.price,
+    required this.savings,
+    required this.testIds,
+  });
+
+  factory LabPanel.fromJson(Map<String, dynamic> json) {
+    return LabPanel(
+      id: json['id'] as int,
+      name: json['name'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      price: json['price']?.toString() ?? '0',
+      savings: json['savings']?.toString() ?? '0',
+      testIds: List<int>.from(json['test_ids'] ?? const []),
+    );
+  }
 }
