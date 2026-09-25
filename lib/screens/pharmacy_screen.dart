@@ -202,7 +202,7 @@ class PharmacyScreen extends StatelessWidget {
       children: [
         _buildGridItem(Icons.camera_alt_outlined, 'Scan & Upload', 'For new prescriptions'),
         _buildGridItem(Icons.autorenew, '1-Touch Refill', 'Instant re-order'),
-        _buildGridItem(Icons.chat_bubble_outline, 'Private Chat', 'Consult a Pharmacist'),
+        _buildGridItem(Icons.volunteer_activism_outlined, 'Discounts & Subsidy', 'Apply for govt. subsidy or discounts'),
         _buildGridItem(Icons.medical_services_outlined, 'Med Cabinet', 'Schedule & History'),
       ],
     );
