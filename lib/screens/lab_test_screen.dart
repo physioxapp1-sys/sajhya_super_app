@@ -176,7 +176,7 @@ class _LabTestScreenState extends State<LabTestScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _SectionHeader(
-                title: 'Popular / Common Tests',
+                title: 'Popular Tests',
                 icon: Icons.local_fire_department_rounded,
                 onViewAll: () {},
               ),
