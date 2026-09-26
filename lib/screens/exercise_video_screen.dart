@@ -20,6 +20,25 @@ const List<(int id, String displayName, String imagePath)> _kRegions = [
   (4, 'Lower Limb', 'assets/regions/lower_limb.jpg'),
 ];
 
+// Not every sub-region has an illustration yet (e.g. all of Spine's, and
+// Upper Limb's "phalanges") -- those fall back to a generic icon rather
+// than being left unmapped here. Keyed by lowercased, trimmed sub-region
+// name so "Ankle" and "ankle" both match.
+const Map<String, String> _kSubregionImages = {
+  'brain': 'assets/subregions/brain.jpg',
+  'face': 'assets/subregions/face.jpg',
+  'spinal cord': 'assets/subregions/spinal_cord.jpg',
+  'ankle': 'assets/subregions/ankle.jpg',
+  'foot': 'assets/subregions/foot.jpg',
+  'hip': 'assets/subregions/hip.jpg',
+  'knee': 'assets/subregions/knee.jpg',
+  'scapula': 'assets/subregions/scapula.jpg',
+  'elbow': 'assets/subregions/elbow.jpg',
+  'hand': 'assets/subregions/hand.jpg',
+  'shoulder': 'assets/subregions/shoulder.jpg',
+  'wrist': 'assets/subregions/wrist.jpg',
+};
+
 class ExerciseVideoScreen extends StatelessWidget {
   const ExerciseVideoScreen({super.key});
 
@@ -344,10 +363,17 @@ class _RegionTile extends StatelessWidget {
             child: Text('No exercises here yet.', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
           )
         else
-          ...browsable.map((sub) => ListTile(
+          ...browsable.map((sub) {
+            final imagePath = _kSubregionImages[sub.name.trim().toLowerCase()];
+            return ListTile(
                 dense: true,
                 contentPadding: const EdgeInsets.only(left: 32, right: 16),
-                leading: const Icon(Icons.fitness_center, size: 18, color: Colors.teal),
+                leading: imagePath != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.asset(imagePath, width: 34, height: 34, fit: BoxFit.cover),
+                      )
+                    : const Icon(Icons.fitness_center, size: 18, color: Colors.teal),
                 title: Text(sub.name, style: const TextStyle(fontSize: 14)),
                 trailing: Text(
                   '${sub.exerciseCount}',
@@ -359,7 +385,8 @@ class _RegionTile extends StatelessWidget {
                     builder: (_) => ExerciseListScreen(subregionId: sub.id, subregionName: sub.name),
                   ),
                 ),
-              )),
+              );
+          }),
       ],
     );
   }

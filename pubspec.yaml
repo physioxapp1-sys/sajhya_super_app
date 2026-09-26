@@ -28,6 +28,7 @@ flutter:
   assets:
     - assets/
     - assets/regions/
+    - assets/subregions/
 
 flutter_launcher_icons:
   android: true
