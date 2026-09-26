@@ -167,8 +167,8 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
       background: Color(0xFFFFEEF2),
     ),
     ServiceItem(
-      title: 'Medicine Delivery',
-      subtitle: 'Get your medicines delivered to your doorstep',
+      title: 'Swift Delivery',
+      subtitle: 'Delivers medicines and all necessary items',
       asset: 'assets/delivery.svg',
       background: Color(0xFFEAF8FF),
     ),
@@ -508,11 +508,30 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
         _recoCard(
           title: reco.exercise.name,
           subtitle: '${reco.subregionName} • ${reco.exercise.defaultSets} sets × ${reco.exercise.defaultReps} reps',
-          leading: Container(
-            color: const Color(0xFFEAF4FF),
-            alignment: Alignment.center,
-            child: const Icon(Icons.fitness_center_rounded, color: Color(0xFF1261B5), size: 40),
-          ),
+          leading: (reco.exercise.exerciseUrl ?? '').trim().isNotEmpty
+              ? CachedNetworkImage(
+                  imageUrl: reco.exercise.exerciseUrl!,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(
+                    color: const Color(0xFFEAF4FF),
+                    alignment: Alignment.center,
+                    child: const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                  errorWidget: (_, __, ___) => Container(
+                    color: const Color(0xFFEAF4FF),
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.fitness_center_rounded, color: Color(0xFF1261B5), size: 40),
+                  ),
+                )
+              : Container(
+                  color: const Color(0xFFEAF4FF),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.fitness_center_rounded, color: Color(0xFF1261B5), size: 40),
+                ),
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(

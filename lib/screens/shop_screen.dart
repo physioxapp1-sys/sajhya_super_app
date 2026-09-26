@@ -13,11 +13,15 @@ class ShopScreen extends StatefulWidget {
   State<ShopScreen> createState() => _ShopScreenState();
 }
 
+const int _pageSize = 10;
+
 class _ShopScreenState extends State<ShopScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   Timer? _debounce;
 
   List<ShopProduct> _products = [];
+  int _visibleCount = _pageSize;
   bool _loading = true;
   String? _error;
   String _query = '';
@@ -26,13 +30,26 @@ class _ShopScreenState extends State<ShopScreen> {
   void initState() {
     super.initState();
     _loadProducts();
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  // Reveals the next 10 already-fetched products as the user scrolls near
+  // the bottom -- no "load more" button, just the swipe itself.
+  void _onScroll() {
+    if (_visibleCount >= _products.length) return;
+    final threshold = _scrollController.position.maxScrollExtent - 300;
+    if (_scrollController.position.pixels >= threshold) {
+      setState(() => _visibleCount = (_visibleCount + _pageSize).clamp(0, _products.length));
+    }
   }
 
   Future<void> _loadProducts({String? search}) async {
@@ -44,6 +61,7 @@ class _ShopScreenState extends State<ShopScreen> {
       final raw = await ApiService().getShopProducts(search: search);
       setState(() {
         _products = raw.map(ShopProduct.fromJson).toList();
+        _visibleCount = _pageSize;
         _loading = false;
       });
     } catch (e) {
@@ -99,6 +117,7 @@ class _ShopScreenState extends State<ShopScreen> {
 
           Expanded(
             child: SingleChildScrollView(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,12 +232,18 @@ class _ShopScreenState extends State<ShopScreen> {
         ),
       );
     }
+    final visible = _products.take(_visibleCount);
     return Column(
       children: [
-        for (final product in _products) ...[
+        for (final product in visible) ...[
           _ProductCard(product: product),
           const SizedBox(height: 16),
         ],
+        if (_visibleCount < _products.length)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+          ),
       ],
     );
   }
