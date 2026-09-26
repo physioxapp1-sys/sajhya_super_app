@@ -20,10 +20,11 @@ const List<(int id, String displayName, String imagePath)> _kRegions = [
   (4, 'Lower Limb', 'assets/regions/lower_limb.jpg'),
 ];
 
-// Not every sub-region has an illustration yet (e.g. all of Spine's) --
-// those fall back to a generic icon rather than being left unmapped here.
-// Keyed by lowercased, trimmed sub-region name so "Ankle" and "ankle" both
-// match. "phalanges" has no dedicated image, so it reuses the hand image
+// Not every sub-region has an illustration yet (e.g. Spine's
+// cervicothoracic/lumbopelvic/thoracolumbar/wholespine) -- those fall back
+// to a generic icon rather than being left unmapped here. Keyed by
+// lowercased, trimmed sub-region name so "Ankle" and "ankle" both match.
+// "phalanges" has no dedicated image, so it reuses the hand image
 // (phalanges are the finger bones).
 const Map<String, String> _kSubregionImages = {
   'brain': 'assets/subregions/brain.jpg',
@@ -38,6 +39,11 @@ const Map<String, String> _kSubregionImages = {
   'hand': 'assets/subregions/hand.jpg',
   'phalanges': 'assets/subregions/hand.jpg',
   'shoulder': 'assets/subregions/shoulder.jpg',
+  'cervical': 'assets/subregions/cervical.png',
+  'coccygeal': 'assets/subregions/coccyx.png',
+  'lumbar': 'assets/subregions/lumbar.png',
+  'pelvis': 'assets/subregions/pelvis.png',
+  'thoracic': 'assets/subregions/thoracic.png',
   'wrist': 'assets/subregions/wrist.jpg',
 };
 
