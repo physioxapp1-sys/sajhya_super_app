@@ -1,10 +1,17 @@
+import 'dart:math';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'models/exercise_library.dart';
+import 'models/pharmacy_product.dart';
+import 'screens/exercise_list_screen.dart';
 import 'screens/exercise_video_screen.dart';
 import 'screens/lab_test_screen.dart';
 import 'screens/pharmacy_screen.dart';
 import 'screens/shop_screen.dart';
+import 'services/api_service.dart';
 
 void main() => runApp(const SajhyaApp());
 
@@ -46,6 +53,21 @@ class ServiceItem {
   });
 }
 
+// Carries the sub-region a recommended exercise came from, since
+// LibraryExercise itself doesn't know which sub-region it was fetched
+// under -- needed so tapping the card can open that exercise's list.
+class _RecoExercise {
+  final LibraryExercise exercise;
+  final int subregionId;
+  final String subregionName;
+
+  const _RecoExercise({
+    required this.exercise,
+    required this.subregionId,
+    required this.subregionName,
+  });
+}
+
 class SajhyaHomePage extends StatefulWidget {
   const SajhyaHomePage({super.key});
 
@@ -56,6 +78,62 @@ class SajhyaHomePage extends StatefulWidget {
 class _SajhyaHomePageState extends State<SajhyaHomePage> {
   int _bottomIndex = 0;
   final TextEditingController _search = TextEditingController();
+
+  PharmacyProduct? _recoProduct;
+  List<_RecoExercise> _recoExercises = [];
+  bool _recoLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecommendations();
+  }
+
+  // Pulls one random pharmacy product and two random exercises (each from a
+  // randomly chosen sub-region that actually has exercises) to populate
+  // "Recommended for You" with real data instead of the old hardcoded list.
+  // Shop has no public API yet, so it's left out of the mix for now.
+  Future<void> _loadRecommendations() async {
+    final rng = Random();
+    try {
+      final results = await Future.wait([
+        ApiService().getPharmacyProducts(),
+        ApiService().getBrowseRegions(),
+      ]);
+      final products = (results[0]).map(PharmacyProduct.fromJson).toList();
+      final regions = (results[1]).map(RegionSummary.fromJson).toList();
+
+      final product = products.isEmpty ? null : products[rng.nextInt(products.length)];
+
+      final browsableSubregions = <SubRegionSummary>[
+        for (final r in regions) ...r.subRegions.where((s) => s.exerciseCount > 0),
+      ]..shuffle(rng);
+
+      final exerciseItems = <_RecoExercise>[];
+      for (final sub in browsableSubregions.take(2)) {
+        try {
+          final raw = await ApiService().getBrowseExercises(sub.id);
+          if (raw.isEmpty) continue;
+          final exercises = raw.map(LibraryExercise.fromJson).toList();
+          final exercise = exercises[rng.nextInt(exercises.length)];
+          exerciseItems.add(_RecoExercise(exercise: exercise, subregionId: sub.id, subregionName: sub.name));
+        } catch (_) {
+          // Skip this sub-region and keep whatever else loaded rather than
+          // failing the whole recommendations row over one bad fetch.
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _recoProduct = product;
+        _recoExercises = exerciseItems;
+        _recoLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _recoLoading = false);
+    }
+  }
 
   final List<ServiceItem> services = const [
     ServiceItem(
@@ -418,52 +496,112 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
   }
 
   Widget _recommendations() {
-    final items = [
-      ('Core Strengthening', '10 min • Beginner', 'assets/reco_exercise.svg'),
-      ('Joint Care Products', 'Shop • Recommended', 'assets/reco_product.svg'),
-      ('Knee Rehab Program', '12 exercises • 2 weeks', 'assets/reco_knee.svg'),
+    if (_recoLoading) {
+      return const SizedBox(
+        height: 185,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final cards = <Widget>[
+      for (final reco in _recoExercises)
+        _recoCard(
+          title: reco.exercise.name,
+          subtitle: '${reco.subregionName} • ${reco.exercise.defaultSets} sets × ${reco.exercise.defaultReps} reps',
+          leading: Container(
+            color: const Color(0xFFEAF4FF),
+            child: const Icon(Icons.fitness_center_rounded, color: Color(0xFF1261B5), size: 40),
+          ),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ExerciseListScreen(subregionId: reco.subregionId, subregionName: reco.subregionName),
+            ),
+          ),
+        ),
+      if (_recoProduct != null)
+        _recoCard(
+          title: _recoProduct!.name,
+          subtitle: 'Pharmacy • NPR ${_recoProduct!.price.toStringAsFixed(0)}',
+          leading: _recoProduct!.imageUrl != null
+              ? CachedNetworkImage(
+                  imageUrl: _recoProduct!.imageUrl!,
+                  fit: BoxFit.contain,
+                  errorWidget: (_, __, ___) => const Icon(Icons.medication_outlined, color: Color(0xFF1261B5), size: 40),
+                )
+              : Container(
+                  color: const Color(0xFFEAF8FF),
+                  child: const Icon(Icons.medication_outlined, color: Color(0xFF1261B5), size: 40),
+                ),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PharmacyScreen()),
+          ),
+        ),
     ];
+
+    if (cards.isEmpty) {
+      return SizedBox(
+        height: 185,
+        child: Center(
+          child: Text('No recommendations right now.', style: TextStyle(color: Colors.grey[500])),
+        ),
+      );
+    }
 
     return SizedBox(
       height: 185,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: items.length,
+        itemCount: cards.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (_, i) {
-          final item = items[i];
-          return Container(
-            width: 205,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFDCEAF7)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      width: double.infinity,
-                      color: const Color(0xFFF1F7FC),
-                      child: SvgPicture.asset(item.$3, fit: BoxFit.contain),
-                    ),
-                  ),
+        itemBuilder: (_, i) => cards[i],
+      ),
+    );
+  }
+
+  Widget _recoCard({
+    required String title,
+    required String subtitle,
+    required Widget leading,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        width: 205,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFDCEAF7)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: double.infinity,
+                  color: const Color(0xFFF1F7FC),
+                  child: leading,
                 ),
-                const SizedBox(height: 8),
-                Text(item.$1,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF123F72))),
-                const SizedBox(height: 3),
-                Text(item.$2, style: const TextStyle(fontSize: 11, color: Color(0xFF68819A))),
-              ],
+              ),
             ),
-          );
-        },
+            const SizedBox(height: 8),
+            Text(title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF123F72))),
+            const SizedBox(height: 3),
+            Text(subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, color: Color(0xFF68819A))),
+          ],
+        ),
       ),
     );
   }
