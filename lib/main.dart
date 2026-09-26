@@ -510,6 +510,7 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
           subtitle: '${reco.subregionName} • ${reco.exercise.defaultSets} sets × ${reco.exercise.defaultReps} reps',
           leading: Container(
             color: const Color(0xFFEAF4FF),
+            alignment: Alignment.center,
             child: const Icon(Icons.fitness_center_rounded, color: Color(0xFF1261B5), size: 40),
           ),
           onTap: () => Navigator.push(
@@ -526,11 +527,16 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
           leading: _recoProduct!.imageUrl != null
               ? CachedNetworkImage(
                   imageUrl: _recoProduct!.imageUrl!,
-                  fit: BoxFit.contain,
-                  errorWidget: (_, __, ___) => const Icon(Icons.medication_outlined, color: Color(0xFF1261B5), size: 40),
+                  fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) => Container(
+                    color: const Color(0xFFEAF8FF),
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.medication_outlined, color: Color(0xFF1261B5), size: 40),
+                  ),
                 )
               : Container(
                   color: const Color(0xFFEAF8FF),
+                  alignment: Alignment.center,
                   child: const Icon(Icons.medication_outlined, color: Color(0xFF1261B5), size: 40),
                 ),
           onTap: () => Navigator.push(
@@ -586,7 +592,14 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
                 child: Container(
                   width: double.infinity,
                   color: const Color(0xFFF1F7FC),
-                  child: leading,
+                  // Stack + StackFit.expand forces the non-positioned child
+                  // to fill this box (a plain Container child would render
+                  // at its own small natural size in the top-left corner
+                  // instead) -- same fix as _ProductCard in pharmacy_screen.dart.
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [leading],
+                  ),
                 ),
               ),
             ),
