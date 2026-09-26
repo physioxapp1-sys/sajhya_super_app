@@ -1,13 +1,24 @@
+import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../models/pharmacy_product.dart';
+import '../services/api_service.dart';
 import 'prescriptions_screen.dart';
 
-class PharmacyScreen extends StatelessWidget {
+class PharmacyScreen extends StatefulWidget {
   const PharmacyScreen({super.key});
 
+  @override
+  State<PharmacyScreen> createState() => _PharmacyScreenState();
+}
+
+class _PharmacyScreenState extends State<PharmacyScreen> {
   // TODO: replace with the patient's real active prescriptions once the
-  // pharmacy backend is wired (see how lab_test_screen.dart pulls from a
-  // live API for the equivalent pattern).
+  // pharmacy backend is wired for prescriptions (see how lab_test_screen.dart
+  // pulls from a live API for the equivalent pattern -- products below are
+  // already wired the same way, prescriptions/Rx status are not yet).
   static const List<RxItem> _activePrescriptions = [
     RxItem(
       name: 'Amoxicillin 500mg (Refill #2)',
@@ -28,6 +39,55 @@ class PharmacyScreen extends StatelessWidget {
       eta: 'Est. Ready: Tomorrow, 10:00 AM',
     ),
   ];
+
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
+
+  List<PharmacyProduct> _products = [];
+  bool _loading = true;
+  String? _error;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadProducts({String? search}) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final raw = await ApiService().getPharmacyProducts(search: search);
+      setState(() {
+        _products = raw.map(PharmacyProduct.fromJson).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    final query = value.trim();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      setState(() => _query = query);
+      _loadProducts(search: query.isEmpty ? null : query);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,9 +110,11 @@ class PharmacyScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(21),
             border: Border.all(color: Colors.black12),
           ),
-          child: const TextField(
-            style: TextStyle(fontSize: 14),
-            decoration: InputDecoration(
+          child: TextField(
+            controller: _searchController,
+            onChanged: _onSearchChanged,
+            style: const TextStyle(fontSize: 14),
+            decoration: const InputDecoration(
               isDense: true,
               isCollapsed: true,
               contentPadding: EdgeInsets.symmetric(vertical: 11),
@@ -83,7 +145,16 @@ class PharmacyScreen extends StatelessWidget {
             _buildQuickActionsGrid(),
             const SizedBox(height: 24),
 
-            // 3. Information Provision: Upcoming Dosages
+            // 3. Real pharmacy catalog (live, no login required)
+            Text(
+              _query.isEmpty ? 'AVAILABLE MEDICINES' : 'RESULTS FOR "$_query"',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
+            ),
+            const SizedBox(height: 8),
+            _buildProductsSection(),
+            const SizedBox(height: 24),
+
+            // 4. Information Provision: Upcoming Dosages
             const Text(
               'UPCOMING DOSAGES',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
@@ -92,7 +163,7 @@ class PharmacyScreen extends StatelessWidget {
             _buildUpcomingDosagesCard(),
             const SizedBox(height: 20),
 
-            // 4. Convenience Utility: Emergency Pharmacy Map Pin
+            // 5. Convenience Utility: Emergency Pharmacy Map Pin
             _buildEmergencyPharmacyTile(),
             const SizedBox(height: 20),
           ],
@@ -222,6 +293,53 @@ class PharmacyScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildProductsSection() {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 30),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          children: [
+            Icon(Icons.wifi_off_rounded, color: Colors.grey[400], size: 32),
+            const SizedBox(height: 8),
+            Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: () => _loadProducts(search: _query.isEmpty ? null : _query),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_products.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Text(
+          _query.isEmpty ? 'No medicines available right now.' : 'No medicines match "$_query".',
+          style: TextStyle(color: Colors.grey[600]),
+        ),
+      );
+    }
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.72,
+      ),
+      itemCount: _products.length,
+      itemBuilder: (_, index) => _ProductCard(product: _products[index]),
+    );
+  }
+
   Widget _buildUpcomingDosagesCard() {
     return Card(
       elevation: 1,
@@ -296,6 +414,114 @@ class PharmacyScreen extends StatelessWidget {
         BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
         BottomNavigationBarItem(icon: Icon(Icons.alarm), label: 'Reminders'),
       ],
+    );
+  }
+}
+
+class _ProductCard extends StatelessWidget {
+  final PharmacyProduct product;
+  const _ProductCard({required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.black12),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 1.3,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Container(
+                  color: const Color(0xFFF0F4F6),
+                  child: product.imageUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: product.imageUrl!,
+                          fit: BoxFit.contain,
+                          placeholder: (_, __) => const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                          errorWidget: (_, __, ___) =>
+                              Icon(Icons.medication_outlined, color: Colors.grey[400], size: 32),
+                        )
+                      : Icon(Icons.medication_outlined, color: Colors.grey[400], size: 32),
+                ),
+                if (product.requiresPrescription)
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade600,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'Rx',
+                        style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  product.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black87),
+                ),
+                if (product.category.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    product.category,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'NPR ${product.price.toStringAsFixed(0)}',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal),
+                      ),
+                    ),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${product.name} — contact pharmacy to order')),
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.add_shopping_cart, size: 18, color: Colors.teal),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
