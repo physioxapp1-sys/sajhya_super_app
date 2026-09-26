@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -59,8 +60,9 @@ class _ShopScreenState extends State<ShopScreen> {
     });
     try {
       final raw = await ApiService().getShopProducts(search: search);
+      final products = raw.map(ShopProduct.fromJson).toList()..shuffle(Random());
       setState(() {
-        _products = raw.map(ShopProduct.fromJson).toList();
+        _products = products;
         _visibleCount = _pageSize;
         _loading = false;
       });
