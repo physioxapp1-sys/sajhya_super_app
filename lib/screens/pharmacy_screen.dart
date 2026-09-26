@@ -54,10 +54,13 @@ class PharmacyScreen extends StatelessWidget {
             style: TextStyle(fontSize: 14),
             decoration: InputDecoration(
               isDense: true,
+              isCollapsed: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 11),
               border: InputBorder.none,
               hintText: 'Search medicines, prescriptions...',
               hintStyle: TextStyle(fontSize: 13, color: Colors.black45),
               prefixIcon: Icon(Icons.search_rounded, size: 20, color: Colors.teal),
+              prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 20),
             ),
           ),
         ),

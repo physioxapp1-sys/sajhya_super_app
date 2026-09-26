@@ -229,10 +229,13 @@ class _LibraryTabState extends State<_LibraryTab> with AutomaticKeepAliveClientM
               style: const TextStyle(fontSize: 14),
               decoration: const InputDecoration(
                 isDense: true,
+                isCollapsed: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 11),
                 border: InputBorder.none,
                 hintText: 'Search exercises (e.g. neck stretch, squat)',
                 hintStyle: TextStyle(fontSize: 13, color: Color(0xFF7890AA)),
                 prefixIcon: Icon(Icons.search_rounded, size: 20, color: Colors.teal),
+                prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 20),
               ),
             ),
           ),
