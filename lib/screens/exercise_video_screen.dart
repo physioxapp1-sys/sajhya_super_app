@@ -39,11 +39,11 @@ const Map<String, String> _kSubregionImages = {
   'hand': 'assets/subregions/hand.jpg',
   'phalanges': 'assets/subregions/hand.jpg',
   'shoulder': 'assets/subregions/shoulder.jpg',
-  'cervical': 'assets/subregions/cervical.png',
-  'coccygeal': 'assets/subregions/coccyx.png',
-  'lumbar': 'assets/subregions/lumbar.png',
-  'pelvis': 'assets/subregions/pelvis.png',
-  'thoracic': 'assets/subregions/thoracic.png',
+  'cervical': 'assets/subregions/cervical.jpg',
+  'coccygeal': 'assets/subregions/coccyx.jpg',
+  'lumbar': 'assets/subregions/lumbar.jpg',
+  'pelvis': 'assets/subregions/pelvis.jpg',
+  'thoracic': 'assets/subregions/thoracic.jpg',
   'wrist': 'assets/subregions/wrist.jpg',
 };
 
