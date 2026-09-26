@@ -12,12 +12,12 @@ import 'exercise_list_screen.dart';
 // immediately in this fixed order/wording instead of waiting on the
 // network -- subregions and exercise counts still come from the live API
 // and get merged in once that response arrives.
-const List<(int id, String displayName)> _kRegions = [
-  (1, 'Head & Neck'),
-  (2, 'Spine'),
-  (5, 'Trunk'),
-  (3, 'Upper Limb'),
-  (4, 'Lower Limb'),
+const List<(int id, String displayName, String imagePath)> _kRegions = [
+  (1, 'Head & Neck', 'assets/regions/head_n_neck.jpg'),
+  (2, 'Spine', 'assets/regions/spine.jpg'),
+  (5, 'Trunk', 'assets/regions/trunk.jpg'),
+  (3, 'Upper Limb', 'assets/regions/upper_limb.jpg'),
+  (4, 'Lower Limb', 'assets/regions/lower_limb.jpg'),
 ];
 
 class ExerciseVideoScreen extends StatelessWidget {
@@ -288,9 +288,10 @@ class _LibraryTabState extends State<_LibraryTab> with AutomaticKeepAliveClientM
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: _kRegions.length,
       itemBuilder: (_, index) {
-        final (id, name) = _kRegions[index];
+        final (id, name, imagePath) = _kRegions[index];
         return _RegionTile(
           name: name,
+          imagePath: imagePath,
           subRegions: _subregionsByRegionId[id],
           loading: _loadingRegions && _subregionsByRegionId[id] == null,
         );
@@ -301,16 +302,31 @@ class _LibraryTabState extends State<_LibraryTab> with AutomaticKeepAliveClientM
 
 class _RegionTile extends StatelessWidget {
   final String name;
+  final String imagePath;
   final List<SubRegionSummary>? subRegions;
   final bool loading;
 
-  const _RegionTile({required this.name, required this.subRegions, required this.loading});
+  const _RegionTile({
+    required this.name,
+    required this.imagePath,
+    required this.subRegions,
+    required this.loading,
+  });
 
   @override
   Widget build(BuildContext context) {
     final browsable = (subRegions ?? []).where((s) => s.exerciseCount > 0).toList();
 
     return ExpansionTile(
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.asset(
+          imagePath,
+          width: 44,
+          height: 44,
+          fit: BoxFit.cover,
+        ),
+      ),
       title: Text(
         name,
         style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.black87, fontSize: 15),
