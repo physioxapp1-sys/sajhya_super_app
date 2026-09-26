@@ -20,10 +20,11 @@ const List<(int id, String displayName, String imagePath)> _kRegions = [
   (4, 'Lower Limb', 'assets/regions/lower_limb.jpg'),
 ];
 
-// Not every sub-region has an illustration yet (e.g. all of Spine's, and
-// Upper Limb's "phalanges") -- those fall back to a generic icon rather
-// than being left unmapped here. Keyed by lowercased, trimmed sub-region
-// name so "Ankle" and "ankle" both match.
+// Not every sub-region has an illustration yet (e.g. all of Spine's) --
+// those fall back to a generic icon rather than being left unmapped here.
+// Keyed by lowercased, trimmed sub-region name so "Ankle" and "ankle" both
+// match. "phalanges" has no dedicated image, so it reuses the hand image
+// (phalanges are the finger bones).
 const Map<String, String> _kSubregionImages = {
   'brain': 'assets/subregions/brain.jpg',
   'face': 'assets/subregions/face.jpg',
@@ -35,6 +36,7 @@ const Map<String, String> _kSubregionImages = {
   'scapula': 'assets/subregions/scapula.jpg',
   'elbow': 'assets/subregions/elbow.jpg',
   'hand': 'assets/subregions/hand.jpg',
+  'phalanges': 'assets/subregions/hand.jpg',
   'shoulder': 'assets/subregions/shoulder.jpg',
   'wrist': 'assets/subregions/wrist.jpg',
 };
@@ -335,9 +337,29 @@ class _RegionTile extends StatelessWidget {
     required this.loading,
   });
 
+  // Content still being added -- shown even at 0 exercises so patients can
+  // see they exist, unlike other empty sub-regions which are hidden as
+  // dead ends. Names, not ids: the backend currently has duplicate rows
+  // for both (two "Hip", two "Foot"), so dedup-by-name below also covers
+  // whichever one ends up holding the real exercises.
+  static const _kAlwaysShow = {'hip', 'foot'};
+
   @override
   Widget build(BuildContext context) {
-    final browsable = (subRegions ?? []).where((s) => s.exerciseCount > 0).toList();
+    // Dedup by name, keeping whichever duplicate has more exercises --
+    // guards against the backend's duplicate Hip/Foot rows rendering as
+    // two identical-looking tiles.
+    final byName = <String, SubRegionSummary>{};
+    for (final s in subRegions ?? []) {
+      final key = s.name.trim().toLowerCase();
+      final existing = byName[key];
+      if (existing == null || s.exerciseCount > existing.exerciseCount) {
+        byName[key] = s;
+      }
+    }
+    final browsable = byName.values
+        .where((s) => s.exerciseCount > 0 || _kAlwaysShow.contains(s.name.trim().toLowerCase()))
+        .toList();
 
     return ExpansionTile(
       leading: ClipRRect(
@@ -379,8 +401,12 @@ class _RegionTile extends StatelessWidget {
                     : const Icon(Icons.fitness_center, size: 18, color: Colors.teal),
                 title: Text(sub.name, style: const TextStyle(fontSize: 14)),
                 trailing: Text(
-                  '${sub.exerciseCount}',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  sub.exerciseCount > 0 ? '${sub.exerciseCount}' : 'Coming soon',
+                  style: TextStyle(
+                    color: sub.exerciseCount > 0 ? Colors.grey[500] : Colors.orange[700],
+                    fontSize: 12,
+                    fontStyle: sub.exerciseCount > 0 ? FontStyle.normal : FontStyle.italic,
+                  ),
                 ),
                 onTap: () => Navigator.push(
                   context,
