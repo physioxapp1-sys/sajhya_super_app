@@ -309,36 +309,46 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
       height: 190,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFDFF0FF), Color(0xFFF0F8FF)],
-        ),
         borderRadius: BorderRadius.circular(24),
+        image: const DecorationImage(
+          image: AssetImage('assets/health_banner.jpg'),
+          fit: BoxFit.cover,
+        ),
       ),
       child: Stack(
         children: [
-          Positioned(
-            right: -5,
-            top: 5,
-            bottom: 0,
-            child: SvgPicture.asset('assets/health_hero.svg', width: 145),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.black.withOpacity(.55),
+                    Colors.black.withOpacity(.25),
+                  ],
+                ),
+              ),
+            ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('Good morning 👋',
-                  style: TextStyle(fontSize: 15, color: Color(0xFF175A9F))),
+                  style: TextStyle(fontSize: 15, color: Colors.white)),
               const SizedBox(height: 4),
               const Text(
                 'Your Health Today',
                 style: TextStyle(
                   fontSize: 25,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF083C78),
+                  color: Colors.white,
                 ),
               ),
-              const Text(
+              Text(
                 'Stay active, stay healthy.',
-                style: TextStyle(fontSize: 14, color: Color(0xFF4B6B8C)),
+                style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(.85)),
               ),
               const Spacer(),
               Container(
