@@ -110,4 +110,22 @@ class ApiService {
       throw Exception('Network error: ${e.message}');
     }
   }
+
+  // ── Shop / marketplace (browse, no login required) ─────────────────────────
+
+  Future<List<Map<String, dynamic>>> getShopProducts({String? search}) async {
+    try {
+      final r = await _dio.get(
+        '/api/public-products/',
+        queryParameters: (search != null && search.isNotEmpty) ? {'search': search} : null,
+      );
+      final d = jsonDecode(r.data as String);
+      return List<Map<String, dynamic>>.from(d['products']);
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw Exception('Could not load products (${e.response?.statusCode})');
+      }
+      throw Exception('Network error: ${e.message}');
+    }
+  }
 }

@@ -1,7 +1,67 @@
+import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-class ShopScreen extends StatelessWidget {
+import '../models/shop_product.dart';
+import '../services/api_service.dart';
+
+class ShopScreen extends StatefulWidget {
   const ShopScreen({super.key});
+
+  @override
+  State<ShopScreen> createState() => _ShopScreenState();
+}
+
+class _ShopScreenState extends State<ShopScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
+
+  List<ShopProduct> _products = [];
+  bool _loading = true;
+  String? _error;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadProducts({String? search}) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final raw = await ApiService().getShopProducts(search: search);
+      setState(() {
+        _products = raw.map(ShopProduct.fromJson).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    final query = value.trim();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      setState(() => _query = query);
+      _loadProducts(search: query.isEmpty ? null : query);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,38 +112,13 @@ class ShopScreen extends StatelessWidget {
                   _buildCategoryRow(),
                   const SizedBox(height: 28),
 
-                  // Product Feed
-                  const Text(
-                    'TRENDING MEDICAL SUPPLIES',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
+                  // Product Feed (live catalog)
+                  Text(
+                    _query.isEmpty ? 'TRENDING MEDICAL SUPPLIES' : 'RESULTS FOR "$_query"',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
                   ),
                   const SizedBox(height: 12),
-
-                  // Product item 1: Advanced Lumbar Support (Demonstrating Supply Consolidation: Buy/Rent option)
-                  _buildProductCard(
-                    context,
-                    title: 'Premium Lumbar Support Belt',
-                    category: 'Orthopedic Braces',
-                    imageUrl: Icons.accessibility_new,
-                    priceText: '\$45.00 Buy  /  \$8.00 Mon Rent',
-                    rating: '4.8 (142 reviews)',
-                    hasVerification: true,
-                    isConsolidatedView: true,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Product item 2: Sterile Elastic Bandages Pack
-                  _buildProductCard(
-                    context,
-                    title: 'Sterile Self-Adherent Bandages (6-Pack)',
-                    category: 'First Aid & Wound Care',
-                    imageUrl: Icons.healing,
-                    priceText: '\$14.99 Upfront Price',
-                    rating: '4.9 (310 reviews)',
-                    hasVerification: true,
-                    isConsolidatedView: false,
-                  ),
-                  const SizedBox(height: 16),
+                  _buildProductsSection(),
                 ],
               ),
             ),
@@ -102,8 +137,10 @@ class ShopScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.black12),
       ),
-      child: const TextField(
-        decoration: InputDecoration(
+      child: TextField(
+        controller: _searchController,
+        onChanged: _onSearchChanged,
+        decoration: const InputDecoration(
           hintText: 'Search supplies (e.g., knee brace, gauze, support)...',
           hintStyle: TextStyle(color: Colors.black38, fontSize: 14),
           prefixIcon: Icon(Icons.search, color: Colors.black45),
@@ -143,16 +180,70 @@ class ShopScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProductCard(
-    BuildContext context, {
-    required String title,
-    required String category,
-    required IconData imageUrl,
-    required String priceText,
-    required String rating,
-    required bool hasVerification,
-    required bool isConsolidatedView,
-  }) {
+  Widget _buildProductsSection() {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 30),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          children: [
+            Icon(Icons.wifi_off_rounded, color: Colors.grey[400], size: 32),
+            const SizedBox(height: 8),
+            Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: () => _loadProducts(search: _query.isEmpty ? null : _query),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_products.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Text(
+          _query.isEmpty ? 'No products available right now.' : 'No products match "$_query".',
+          style: TextStyle(color: Colors.grey[600]),
+        ),
+      );
+    }
+    return Column(
+      children: [
+        for (final product in _products) ...[
+          _ProductCard(product: product),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+}
+
+class _ProductCard extends StatelessWidget {
+  final ShopProduct product;
+  const _ProductCard({required this.product});
+
+  void _showVariantSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      builder: (_) => _VariantSheet(product: product),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasVariants = product.variants.isNotEmpty;
+    final priceLabel = hasVariants
+        ? 'From NPR ${product.displayPrice.toStringAsFixed(0)}'
+        : 'NPR ${product.displayPrice.toStringAsFixed(0)}';
+
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -164,20 +255,27 @@ class ShopScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Badge Section (Research Point 1: Vetting & Trust Verification)
+            // Top Badge Section: real category on the left, real
+            // is_featured flag on the right (was a fake "FDA CLEARED"
+            // verification badge -- same visual slot, real data now).
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(category.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black45)),
-                if (hasVerification)
+                Expanded(
+                  child: Text(
+                    product.category.isNotEmpty ? product.category.toUpperCase() : 'GENERAL',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black45),
+                  ),
+                ),
+                if (product.isFeatured)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
                     child: Row(
                       children: [
-                        Icon(Icons.verified, size: 12, color: Colors.green.shade700),
+                        Icon(Icons.star, size: 12, color: Colors.green.shade700),
                         const SizedBox(width: 4),
-                        Text('FDA CLEARED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                        Text('FEATURED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
                       ],
                     ),
                   ),
@@ -189,29 +287,40 @@ class ShopScreen extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(color: const Color(0xFFF0F4F6), borderRadius: BorderRadius.circular(12)),
-                  child: Icon(imageUrl, color: Colors.teal.shade700, size: 36),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 70,
+                    height: 70,
+                    color: const Color(0xFFF0F4F6),
+                    child: product.imageUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: product.imageUrl!,
+                            width: 70,
+                            height: 70,
+                            fit: BoxFit.cover,
+                            placeholder: (_, __) => const Center(
+                              child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                            ),
+                            errorWidget: (_, __, ___) => Icon(Icons.medical_services_outlined, color: Colors.teal.shade700, size: 32),
+                          )
+                        : Icon(Icons.medical_services_outlined, color: Colors.teal.shade700, size: 32),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 14),
-                          const SizedBox(width: 4),
-                          Text(rating, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                        ],
-                      ),
+                      Text(product.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      // Real brand line, in the visual slot the old star
+                      // rating row used to occupy -- there's no rating data.
+                      if (product.brand.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(product.brand, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                      ],
                       const SizedBox(height: 8),
-                      // Upfront Price Transparency (Research Point 1)
-                      Text(priceText, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal)),
+                      Text(priceLabel, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal)),
                     ],
                   ),
                 ),
@@ -219,26 +328,30 @@ class ShopScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Consolidated Actions Tab Layer (Research Point 4: Home Technology Integration)
+            // Actions: a product with real priced options gets a "View
+            // Options" + "Add to Cart" pair (was a fake Buy/Rent pair);
+            // one without just gets a single Add to Cart button.
             Row(
-              children: isConsolidatedView
+              children: hasVariants
                   ? [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () {},
+                          onPressed: () => _showVariantSheet(context),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Colors.teal),
                             foregroundColor: Colors.teal,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
-                          child: const Text('Rent', style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: const Text('View Options', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {},
+                          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('${product.name} — contact store to order')),
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.teal,
                             foregroundColor: Colors.white,
@@ -246,14 +359,16 @@ class ShopScreen extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
-                          child: const Text('Buy', style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: const Text('Add to Cart', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ]
                   : [
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () {},
+                          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('${product.name} — contact store to order')),
+                          ),
                           icon: const Icon(Icons.add_shopping_cart, size: 18),
                           label: const Text('Add to Cart', style: TextStyle(fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
@@ -267,6 +382,66 @@ class ShopScreen extends StatelessWidget {
                       ),
                     ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VariantSheet extends StatelessWidget {
+  final ShopProduct product;
+  const _VariantSheet({required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(product.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.black87)),
+            const SizedBox(height: 4),
+            Text('${product.variants.length} option${product.variants.length == 1 ? '' : 's'} available',
+                style: const TextStyle(color: Colors.black54)),
+            const SizedBox(height: 14),
+            ...product.variants.map((v) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(v.label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(v.inStock ? 'In stock' : 'Out of stock', style: TextStyle(color: v.inStock ? Colors.green[700] : Colors.red[700])),
+                  trailing: SizedBox(
+                    width: 130,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text('NPR ${v.price.toStringAsFixed(0)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline, color: Colors.teal),
+                          onPressed: v.inStock
+                              ? () {
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('${product.name} (${v.label}) — contact store to order')),
+                                  );
+                                }
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                )),
           ],
         ),
       ),
