@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../widgets/auth_gate.dart';
 
 class LabTestScreen extends StatefulWidget {
   const LabTestScreen({super.key});
@@ -19,6 +20,7 @@ class _LabTestScreenState extends State<LabTestScreen> {
   String? _error;
 
   final Set<int> selectedTests = {};
+  bool _submitting = false;
 
   @override
   void initState() {
@@ -98,6 +100,58 @@ class _LabTestScreenState extends State<LabTestScreen> {
         selectedTests.add(test.id);
       }
     });
+  }
+
+  double get _selectedTotal {
+    double sum = 0;
+    for (final t in _tests) {
+      if (selectedTests.contains(t.id)) sum += t.price;
+    }
+    return sum;
+  }
+
+  Future<void> _submitRequest() async {
+    if (selectedTests.isEmpty || _submitting) return;
+    final canProceed = await ensureLoggedIn(context);
+    if (!canProceed || !mounted) return;
+
+    setState(() => _submitting = true);
+    try {
+      final result = await ApiService().submitLabRequest(selectedTests.toList());
+      if (!mounted) return;
+      setState(() => selectedTests.clear());
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          backgroundColor: Colors.white,
+          title: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green[700]),
+              const SizedBox(width: 8),
+              const Text('Request Sent'),
+            ],
+          ),
+          content: Text(
+            'Request #${result['request_number']}\nTotal: NPR ${result['total']}\n\n'
+            'The clinic will contact you, or you can visit the lab directly.',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', '')), backgroundColor: Colors.redAccent),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   void _showTestDetails(LabTest test) {
@@ -231,8 +285,52 @@ class _LabTestScreenState extends State<LabTestScreen> {
               _PackagesBanner(panels: _panels, allTests: _tests),
               const SizedBox(height: 20),
               _SafetyBanner(),
+              if (selectedTests.isNotEmpty) const SizedBox(height: 90),
             ],
           ),
+        ),
+      ),
+      bottomNavigationBar: selectedTests.isEmpty ? null : _buildRequestBar(),
+    );
+  }
+
+  Widget _buildRequestBar() {
+    final count = selectedTests.length;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('$count test${count == 1 ? '' : 's'} selected',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF6B8098))),
+                  Text('NPR ${_selectedTotal.toStringAsFixed(0)}',
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF12366B))),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              onPressed: _submitting ? null : _submitRequest,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2384E8),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _submitting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Request Tests', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
         ),
       ),
     );
