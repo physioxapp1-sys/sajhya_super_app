@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import '../models/pharmacy_product.dart';
 import '../services/api_service.dart';
 
-const int _pageSize = 10;
+const int _featuredCount = 6;
 
 class MedCabinetScreen extends StatefulWidget {
   const MedCabinetScreen({super.key});
@@ -18,11 +18,16 @@ class MedCabinetScreen extends StatefulWidget {
 
 class _MedCabinetScreenState extends State<MedCabinetScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
   Timer? _debounce;
 
-  List<PharmacyProduct> _products = [];
-  int _visibleCount = _pageSize;
+  // Default view: a small random taste of the catalog, not the whole thing
+  // -- rendering every medicine at once (even lazily) meant every visible
+  // card's image loaded up front for no reason when browsing. The rest of
+  // the catalog is reachable only by typing a search, which queries the
+  // backend fresh rather than filtering an already-fully-loaded list.
+  List<PharmacyProduct> _featured = [];
+  List<PharmacyProduct>? _searchResults;
+
   bool _loading = true;
   String? _error;
   String _query = '';
@@ -30,40 +35,26 @@ class _MedCabinetScreenState extends State<MedCabinetScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProducts();
-    _scrollController.addListener(_onScroll);
+    _loadFeatured();
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  // Reveals the next 10 already-fetched medicines as the user scrolls near
-  // the bottom -- no "load more" button, same pattern as Shop's catalog.
-  void _onScroll() {
-    if (_visibleCount >= _products.length) return;
-    final threshold = _scrollController.position.maxScrollExtent - 300;
-    if (_scrollController.position.pixels >= threshold) {
-      setState(() => _visibleCount = (_visibleCount + _pageSize).clamp(0, _products.length));
-    }
-  }
-
-  Future<void> _loadProducts({String? search}) async {
+  Future<void> _loadFeatured() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final raw = await ApiService().getPharmacyProducts(search: search);
+      final raw = await ApiService().getPharmacyProducts();
       final products = raw.map(PharmacyProduct.fromJson).toList()..shuffle(Random());
       setState(() {
-        _products = products;
-        _visibleCount = _pageSize;
+        _featured = products.take(_featuredCount).toList();
         _loading = false;
       });
     } catch (e) {
@@ -74,12 +65,41 @@ class _MedCabinetScreenState extends State<MedCabinetScreen> {
     }
   }
 
+  Future<void> _runSearch(String query) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final raw = await ApiService().getPharmacyProducts(search: query);
+      if (!mounted) return;
+      setState(() {
+        _searchResults = raw.map(PharmacyProduct.fromJson).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
   void _onSearchChanged(String value) {
     _debounce?.cancel();
     final query = value.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _query = '';
+        _searchResults = null;
+        _error = null;
+      });
+      return;
+    }
     _debounce = Timer(const Duration(milliseconds: 400), () {
       setState(() => _query = query);
-      _loadProducts(search: query.isEmpty ? null : query);
+      _runSearch(query);
     });
   }
 
@@ -122,15 +142,21 @@ class _MedCabinetScreenState extends State<MedCabinetScreen> {
         ),
       ),
       body: SingleChildScrollView(
-        controller: _scrollController,
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _query.isEmpty ? 'YOUR MED CABINET' : 'RESULTS FOR "$_query"',
+              _query.isEmpty ? 'DISCOVER' : 'RESULTS FOR "$_query"',
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
             ),
+            if (_query.isEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                'A few from the catalog -- search above for everything else.',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
             const SizedBox(height: 8),
             _buildProductsSection(),
           ],
@@ -156,14 +182,15 @@ class _MedCabinetScreenState extends State<MedCabinetScreen> {
             Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
             const SizedBox(height: 10),
             OutlinedButton(
-              onPressed: () => _loadProducts(search: _query.isEmpty ? null : _query),
+              onPressed: () => _query.isEmpty ? _loadFeatured() : _runSearch(_query),
               child: const Text('Retry'),
             ),
           ],
         ),
       );
     }
-    if (_products.isEmpty) {
+    final products = _searchResults ?? _featured;
+    if (products.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Text(
@@ -172,27 +199,17 @@ class _MedCabinetScreenState extends State<MedCabinetScreen> {
         ),
       );
     }
-    final visible = _products.take(_visibleCount).toList();
-    return Column(
-      children: [
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.72,
-          ),
-          itemCount: visible.length,
-          itemBuilder: (_, index) => _ProductCard(product: visible[index]),
-        ),
-        if (_visibleCount < _products.length)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
-          ),
-      ],
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.72,
+      ),
+      itemCount: products.length,
+      itemBuilder: (_, index) => _ProductCard(product: products[index]),
     );
   }
 }
