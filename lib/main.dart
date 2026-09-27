@@ -9,6 +9,7 @@ import 'models/pharmacy_product.dart';
 import 'screens/exercise_list_screen.dart';
 import 'screens/exercise_video_screen.dart';
 import 'screens/lab_test_screen.dart';
+import 'screens/med_cabinet_screen.dart';
 import 'screens/pharmacy_screen.dart';
 import 'screens/shop_screen.dart';
 import 'services/api_service.dart';
@@ -560,7 +561,7 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
                 ),
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const PharmacyScreen()),
+            MaterialPageRoute(builder: (_) => const MedCabinetScreen()),
           ),
         ),
     ];
