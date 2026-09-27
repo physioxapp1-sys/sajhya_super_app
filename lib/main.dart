@@ -104,7 +104,11 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
       final products = (results[0]).map(PharmacyProduct.fromJson).toList();
       final regions = (results[1]).map(RegionSummary.fromJson).toList();
 
-      final product = products.isEmpty ? null : products[rng.nextInt(products.length)];
+      // Only nutraceuticals/supplements are safe to surface in a casual
+      // "recommended for you" widget -- a prescription medicine needs a
+      // doctor's context, not a homepage suggestion.
+      final safeProducts = products.where((p) => !p.requiresPrescription).toList();
+      final product = safeProducts.isEmpty ? null : safeProducts[rng.nextInt(safeProducts.length)];
 
       final browsableSubregions = <SubRegionSummary>[
         for (final r in regions) ...r.subRegions.where((s) => s.exerciseCount > 0),
