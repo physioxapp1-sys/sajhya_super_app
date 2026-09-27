@@ -14,15 +14,20 @@ class ShopScreen extends StatefulWidget {
   State<ShopScreen> createState() => _ShopScreenState();
 }
 
-const int _pageSize = 10;
+const int _defaultCount = 40;
 
 class _ShopScreenState extends State<ShopScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
   Timer? _debounce;
 
-  List<ShopProduct> _products = [];
-  int _visibleCount = _pageSize;
+  // Default view: a random slice of the catalog, capped at 40 -- not the
+  // whole thing, and not incrementally revealed via scroll either (that
+  // still built every revealed card eagerly). The rest of the catalog is
+  // reachable only by searching, which queries the backend fresh instead
+  // of filtering an already-loaded list.
+  List<ShopProduct> _default = [];
+  List<ShopProduct>? _searchResults;
+
   bool _loading = true;
   String? _error;
   String _query = '';
@@ -30,40 +35,26 @@ class _ShopScreenState extends State<ShopScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProducts();
-    _scrollController.addListener(_onScroll);
+    _loadDefault();
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  // Reveals the next 10 already-fetched products as the user scrolls near
-  // the bottom -- no "load more" button, just the swipe itself.
-  void _onScroll() {
-    if (_visibleCount >= _products.length) return;
-    final threshold = _scrollController.position.maxScrollExtent - 300;
-    if (_scrollController.position.pixels >= threshold) {
-      setState(() => _visibleCount = (_visibleCount + _pageSize).clamp(0, _products.length));
-    }
-  }
-
-  Future<void> _loadProducts({String? search}) async {
+  Future<void> _loadDefault() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final raw = await ApiService().getShopProducts(search: search);
+      final raw = await ApiService().getShopProducts();
       final products = raw.map(ShopProduct.fromJson).toList()..shuffle(Random());
       setState(() {
-        _products = products;
-        _visibleCount = _pageSize;
+        _default = products.take(_defaultCount).toList();
         _loading = false;
       });
     } catch (e) {
@@ -74,12 +65,41 @@ class _ShopScreenState extends State<ShopScreen> {
     }
   }
 
+  Future<void> _runSearch(String query) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final raw = await ApiService().getShopProducts(search: query);
+      if (!mounted) return;
+      setState(() {
+        _searchResults = raw.map(ShopProduct.fromJson).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
   void _onSearchChanged(String value) {
     _debounce?.cancel();
     final query = value.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _query = '';
+        _searchResults = null;
+        _error = null;
+      });
+      return;
+    }
     _debounce = Timer(const Duration(milliseconds: 400), () {
       setState(() => _query = query);
-      _loadProducts(search: query.isEmpty ? null : query);
+      _runSearch(query);
     });
   }
 
@@ -119,7 +139,6 @@ class _ShopScreenState extends State<ShopScreen> {
 
           Expanded(
             child: SingleChildScrollView(
-              controller: _scrollController,
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -218,14 +237,15 @@ class _ShopScreenState extends State<ShopScreen> {
             Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
             const SizedBox(height: 10),
             OutlinedButton(
-              onPressed: () => _loadProducts(search: _query.isEmpty ? null : _query),
+              onPressed: () => _query.isEmpty ? _loadDefault() : _runSearch(_query),
               child: const Text('Retry'),
             ),
           ],
         ),
       );
     }
-    if (_products.isEmpty) {
+    final products = _searchResults ?? _default;
+    if (products.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Text(
@@ -234,18 +254,12 @@ class _ShopScreenState extends State<ShopScreen> {
         ),
       );
     }
-    final visible = _products.take(_visibleCount);
     return Column(
       children: [
-        for (final product in visible) ...[
+        for (final product in products) ...[
           _ProductCard(product: product),
           const SizedBox(height: 16),
         ],
-        if (_visibleCount < _products.length)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
-          ),
       ],
     );
   }
