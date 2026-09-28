@@ -9,10 +9,12 @@ import 'models/pharmacy_product.dart';
 import 'screens/exercise_list_screen.dart';
 import 'screens/exercise_video_screen.dart';
 import 'screens/lab_test_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/med_cabinet_screen.dart';
 import 'screens/pharmacy_screen.dart';
 import 'screens/shop_screen.dart';
 import 'services/api_service.dart';
+import 'services/auth_state.dart';
 
 void main() => runApp(const SajhyaApp());
 
@@ -88,6 +90,10 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
   void initState() {
     super.initState();
     _loadRecommendations();
+    // Quietly restores the profile icon's logged-in look if a session
+    // cookie from a previous visit is still valid -- never prompts a
+    // login, just reflects what's already true (soft-gate philosophy).
+    AuthState().checkSession();
   }
 
   // Pulls one random pharmacy product and two random exercises (each from a
@@ -318,12 +324,103 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
             child: Icon(Icons.notifications_none_rounded, size: 29),
           ),
         ),
-        const CircleAvatar(
-          radius: 21,
-          backgroundColor: Color(0xFFE4F0FF),
-          child: Icon(Icons.person, color: Color(0xFF1261B5)),
+        AnimatedBuilder(
+          animation: AuthState(),
+          builder: (context, _) {
+            final loggedIn = AuthState().isLoggedIn;
+            final name = (AuthState().patientName ?? '').trim();
+            return InkWell(
+              borderRadius: BorderRadius.circular(21),
+              onTap: _onProfileTap,
+              child: CircleAvatar(
+                radius: 21,
+                backgroundColor: const Color(0xFFE4F0FF),
+                child: loggedIn
+                    ? Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : '?',
+                        style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1261B5)),
+                      )
+                    : const Icon(Icons.person, color: Color(0xFF1261B5)),
+              ),
+            );
+          },
         ),
       ],
+    );
+  }
+
+  // Tapping the profile icon while signed out opens the login screen
+  // directly -- this is the app's one proactive entry point into auth,
+  // on top of the soft-gate prompts that already fire from specific
+  // actions like Lab Test booking. Signed in, it shows account info
+  // and a way to log out instead.
+  Future<void> _onProfileTap() async {
+    if (AuthState().isLoggedIn) {
+      _showAccountSheet();
+      return;
+    }
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+  }
+
+  void _showAccountSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: const Color(0xFFE4F0FF),
+                    child: Text(
+                      (AuthState().patientName ?? '').trim().isNotEmpty
+                          ? AuthState().patientName!.trim()[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF1261B5)),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(AuthState().patientName ?? 'Patient',
+                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 2),
+                        Text('Patient Code: ${AuthState().patientCode ?? '-'}',
+                            style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await AuthState().logout();
+                  },
+                  icon: const Icon(Icons.logout, color: Colors.redAccent),
+                  label: const Text('Log out', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.redAccent),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
