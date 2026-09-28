@@ -106,119 +106,66 @@ class _ShopScreenState extends State<ShopScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F9FA),
+      backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.teal),
           onPressed: () => Navigator.maybePop(context),
         ),
-        title: const Text(
-          'Medical Equipment & Supplies',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
+        titleSpacing: 0,
+        title: Container(
+          height: 42,
+          margin: const EdgeInsets.only(right: 16),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF4F6F8),
+            borderRadius: BorderRadius.circular(21),
+            border: Border.all(color: Colors.black12),
+          ),
+          child: TextField(
+            controller: _searchController,
+            onChanged: _onSearchChanged,
+            style: const TextStyle(fontSize: 14),
+            decoration: const InputDecoration(
+              isDense: true,
+              isCollapsed: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 11),
+              border: InputBorder.none,
+              hintText: 'Search supplies (e.g. knee brace, gauze)...',
+              hintStyle: TextStyle(fontSize: 13, color: Colors.black45),
+              prefixIcon: Icon(Icons.search_rounded, size: 20, color: Colors.teal),
+              prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 20),
+            ),
+          ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.shopping_cart_outlined, color: Colors.teal),
-            onPressed: () {},
-          ),
-        ],
       ),
-      body: Column(
-        children: [
-          // Fixed search bar -- stays put while the content below scrolls.
-          Container(
-            padding: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(bottom: BorderSide(color: Colors.black.withOpacity(0.06))),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _query.isEmpty ? 'TRENDING MEDICAL SUPPLIES' : 'RESULTS FOR "$_query"',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
             ),
-            child: _buildSearchBar(),
-          ),
-
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Quick Browse Grid Categories
-                  const Text(
-                    'EXPLORE CATEGORIES',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildCategoryRow(),
-                  const SizedBox(height: 28),
-
-                  // Product Feed (live catalog)
-                  Text(
-                    _query.isEmpty ? 'TRENDING MEDICAL SUPPLIES' : 'RESULTS FOR "$_query"',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildProductsSection(),
-                ],
+            if (_query.isEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                'A few from the catalog -- search above for everything else.',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
-            ),
-          ),
-        ],
+            ],
+            const SizedBox(height: 8),
+            _buildProductsSection(),
+          ],
+        ),
       ),
     );
   }
 
   // --- Widget Component Builders ---
-
-  Widget _buildSearchBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: TextField(
-        controller: _searchController,
-        onChanged: _onSearchChanged,
-        decoration: const InputDecoration(
-          hintText: 'Search supplies (e.g., knee brace, gauze, support)...',
-          hintStyle: TextStyle(color: Colors.black38, fontSize: 14),
-          prefixIcon: Icon(Icons.search, color: Colors.black45),
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(vertical: 14),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryRow() {
-    final categories = [
-      {'icon': Icons.healing, 'label': 'Bandages'},
-      {'icon': Icons.accessibility_new, 'label': 'Braces'},
-      {'icon': Icons.airline_seat_flat_angled, 'label': 'Lumbar Support'},
-      {'icon': Icons.accessible, 'label': 'Mobility'},
-    ];
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: categories.map((cat) {
-        return Column(
-          children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: Colors.white,
-              child: Icon(cat['icon'] as IconData, color: Colors.teal, size: 26),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              cat['label'] as String,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black54),
-            ),
-          ],
-        );
-      }).toList(),
-    );
-  }
 
   Widget _buildProductsSection() {
     if (_loading) {
@@ -254,13 +201,17 @@ class _ShopScreenState extends State<ShopScreen> {
         ),
       );
     }
-    return Column(
-      children: [
-        for (final product in products) ...[
-          _ProductCard(product: product),
-          const SizedBox(height: 16),
-        ],
-      ],
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.68,
+      ),
+      itemCount: products.length,
+      itemBuilder: (_, index) => _ProductCard(product: products[index]),
     );
   }
 }
@@ -285,146 +236,107 @@ class _ProductCard extends StatelessWidget {
         ? 'From NPR ${product.displayPrice.toStringAsFixed(0)}'
         : 'NPR ${product.displayPrice.toStringAsFixed(0)}';
 
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Colors.black12),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.black12),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Badge Section: real category on the left, real
-            // is_featured flag on the right (was a fake "FDA CLEARED"
-            // verification badge -- same visual slot, real data now).
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 1.3,
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                Expanded(
-                  child: Text(
-                    product.category.isNotEmpty ? product.category.toUpperCase() : 'GENERAL',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black45),
-                  ),
+                Container(
+                  color: const Color(0xFFF0F4F6),
+                  child: product.imageUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: product.imageUrl!,
+                          fit: BoxFit.contain,
+                          placeholder: (_, __) => const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                          errorWidget: (_, __, ___) =>
+                              Icon(Icons.medical_services_outlined, color: Colors.teal.shade700, size: 32),
+                        )
+                      : Icon(Icons.medical_services_outlined, color: Colors.teal.shade700, size: 32),
                 ),
                 if (product.isFeatured)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
-                    child: Row(
-                      children: [
-                        Icon(Icons.star, size: 12, color: Colors.green.shade700),
-                        const SizedBox(width: 4),
-                        Text('FEATURED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
-                      ],
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade600,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'FEATURED',
+                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 12),
-
-            // Core Details Layout
-            Row(
+          ),
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    width: 70,
-                    height: 70,
-                    color: const Color(0xFFF0F4F6),
-                    child: product.imageUrl != null
-                        ? CachedNetworkImage(
-                            imageUrl: product.imageUrl!,
-                            width: 70,
-                            height: 70,
-                            fit: BoxFit.cover,
-                            placeholder: (_, __) => const Center(
-                              child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                            ),
-                            errorWidget: (_, __, ___) => Icon(Icons.medical_services_outlined, color: Colors.teal.shade700, size: 32),
-                          )
-                        : Icon(Icons.medical_services_outlined, color: Colors.teal.shade700, size: 32),
-                  ),
+                Text(
+                  product.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black87),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(product.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      // Real brand line, in the visual slot the old star
-                      // rating row used to occupy -- there's no rating data.
-                      if (product.brand.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(product.brand, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                      ],
-                      const SizedBox(height: 8),
-                      Text(priceLabel, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal)),
-                    ],
+                if (product.category.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    product.category,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                   ),
+                ],
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        priceLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal),
+                      ),
+                    ),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => hasVariants
+                          ? _showVariantSheet(context)
+                          : ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('${product.name} — contact store to order')),
+                            ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(hasVariants ? Icons.tune : Icons.add_shopping_cart, size: 18, color: Colors.teal),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-
-            // Actions: a product with real priced options gets a "View
-            // Options" + "Add to Cart" pair (was a fake Buy/Rent pair);
-            // one without just gets a single Add to Cart button.
-            Row(
-              children: hasVariants
-                  ? [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => _showVariantSheet(context),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.teal),
-                            foregroundColor: Colors.teal,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          child: const Text('View Options', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('${product.name} — contact store to order')),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.teal,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          child: const Text('Add to Cart', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ]
-                  : [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('${product.name} — contact store to order')),
-                          ),
-                          icon: const Icon(Icons.add_shopping_cart, size: 18),
-                          label: const Text('Add to Cart', style: TextStyle(fontWeight: FontWeight.bold)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.teal,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                      ),
-                    ],
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
