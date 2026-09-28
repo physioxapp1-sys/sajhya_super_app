@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../models/shop_product.dart';
 import '../services/api_service.dart';
+import 'shop_product_detail_screen.dart';
 
 class ShopScreen extends StatefulWidget {
   const ShopScreen({super.key});
@@ -236,107 +237,116 @@ class _ProductCard extends StatelessWidget {
         ? 'From NPR ${product.displayPrice.toStringAsFixed(0)}'
         : 'NPR ${product.displayPrice.toStringAsFixed(0)}';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black12),
-      ),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: 1.3,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Container(
-                  color: const Color(0xFFF0F4F6),
-                  child: product.imageUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: product.imageUrl!,
-                          fit: BoxFit.contain,
-                          placeholder: (_, __) => const Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                          errorWidget: (_, __, ___) =>
-                              Icon(Icons.medical_services_outlined, color: Colors.teal.shade700, size: 32),
-                        )
-                      : Icon(Icons.medical_services_outlined, color: Colors.teal.shade700, size: 32),
-                ),
-                if (product.isFeatured)
-                  Positioned(
-                    top: 6,
-                    left: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade600,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text(
-                        'FEATURED',
-                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ShopProductDetailScreen(product: product)),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.black12),
           ),
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  product.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black87),
-                ),
-                if (product.category.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    product.category,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                  ),
-                ],
-                const SizedBox(height: 6),
-                Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AspectRatio(
+                aspectRatio: 1.3,
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    Expanded(
-                      child: Text(
-                        priceLabel,
+                    Container(
+                      color: const Color(0xFFF0F4F6),
+                      child: product.imageUrl != null
+                          ? CachedNetworkImage(
+                              imageUrl: product.imageUrl!,
+                              fit: BoxFit.contain,
+                              placeholder: (_, __) => const Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                              errorWidget: (_, __, ___) =>
+                                  Icon(Icons.medical_services_outlined, color: Colors.teal.shade700, size: 32),
+                            )
+                          : Icon(Icons.medical_services_outlined, color: Colors.teal.shade700, size: 32),
+                    ),
+                    if (product.isFeatured)
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade600,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'FEATURED',
+                            style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black87),
+                    ),
+                    if (product.category.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        product.category,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                       ),
-                    ),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () => hasVariants
-                          ? _showVariantSheet(context)
-                          : ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('${product.name} — contact store to order')),
-                            ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(hasVariants ? Icons.tune : Icons.add_shopping_cart, size: 18, color: Colors.teal),
-                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            priceLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal),
+                          ),
+                        ),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => hasVariants
+                              ? _showVariantSheet(context)
+                              : ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('${product.name} — contact store to order')),
+                                ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(hasVariants ? Icons.tune : Icons.add_shopping_cart, size: 18, color: Colors.teal),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
