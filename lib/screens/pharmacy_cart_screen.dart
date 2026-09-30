@@ -1,0 +1,257 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+
+import '../models/cart.dart';
+import '../services/api_service.dart';
+import '../services/cart_state.dart';
+import 'checkout_screen.dart';
+
+// Mirrors cart_screen.dart's shape but talks to the pharmacy cart endpoints
+// (no variant_id, has requires_prescription) -- kept as its own screen
+// rather than a shared one with a "which cart" flag, same split the backend
+// itself keeps between the two cart pipelines.
+class PharmacyCartScreen extends StatefulWidget {
+  const PharmacyCartScreen({super.key});
+
+  @override
+  State<PharmacyCartScreen> createState() => _PharmacyCartScreenState();
+}
+
+class _PharmacyCartScreenState extends State<PharmacyCartScreen> {
+  CartSummary? _cart;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await ApiService().getPharmacyCart();
+      final cart = CartSummary.fromJson(data);
+      PharmacyCartState().setCount(cart.count);
+      if (!mounted) return;
+      setState(() {
+        _cart = cart;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString().replaceFirst('Exception: ', '');
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _setQuantity(CartItem item, int quantity) async {
+    try {
+      await ApiService().updatePharmacyCart(item.productId, quantity);
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F8),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.teal),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+        title: const Text('Your Cart', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+      ),
+      body: _buildBody(),
+      bottomNavigationBar: (_cart != null && _cart!.items.isNotEmpty) ? _buildCheckoutBar() : null,
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.wifi_off_rounded, color: Colors.grey[400], size: 32),
+              const SizedBox(height: 8),
+              Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
+              const SizedBox(height: 10),
+              OutlinedButton(onPressed: _load, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
+    final items = _cart?.items ?? [];
+    if (items.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.shopping_cart_outlined, color: Colors.grey[400], size: 48),
+            const SizedBox(height: 12),
+            Text('Your cart is empty', style: TextStyle(color: Colors.grey[600])),
+          ],
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (_, i) => _PharmacyCartItemTile(item: items[i], onQuantityChanged: (q) => _setQuantity(items[i], q)),
+    );
+  }
+
+  Widget _buildCheckoutBar() {
+    final total = _cart!.total;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Total', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                  Text('NPR ${total.toStringAsFixed(0)}',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => CheckoutScreen(isPharmacy: true, total: total)),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Checkout', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PharmacyCartItemTile extends StatelessWidget {
+  final CartItem item;
+  final ValueChanged<int> onQuantityChanged;
+  const _PharmacyCartItemTile({required this.item, required this.onQuantityChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 60,
+              height: 60,
+              color: const Color(0xFFF0F4F6),
+              child: item.imageUrl != null
+                  ? CachedNetworkImage(
+                      imageUrl: item.imageUrl!,
+                      fit: BoxFit.contain,
+                      errorWidget: (_, __, ___) => Icon(Icons.medication_outlined, color: Colors.grey[400]),
+                    )
+                  : Icon(Icons.medication_outlined, color: Colors.grey[400]),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black87)),
+                if (item.requiresPrescription) ...[
+                  const SizedBox(height: 2),
+                  Text('Requires prescription', style: TextStyle(fontSize: 11, color: Colors.red[700])),
+                ],
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Text('NPR ${item.price.toStringAsFixed(0)}',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal)),
+                    const Spacer(),
+                    _QuantityStepper(quantity: item.quantity, onChanged: onQuantityChanged),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuantityStepper extends StatelessWidget {
+  final int quantity;
+  final ValueChanged<int> onChanged;
+  const _QuantityStepper({required this.quantity, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.black12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: Icon(quantity <= 1 ? Icons.delete_outline : Icons.remove, size: 18, color: Colors.teal),
+            onPressed: () => onChanged(quantity - 1),
+          ),
+          SizedBox(width: 20, child: Text('$quantity', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold))),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.add, size: 18, color: Colors.teal),
+            onPressed: () => onChanged(quantity + 1),
+          ),
+        ],
+      ),
+    );
+  }
+}

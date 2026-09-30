@@ -6,6 +6,10 @@ import 'package:flutter/material.dart';
 
 import '../models/pharmacy_product.dart';
 import '../services/api_service.dart';
+import '../services/cart_state.dart';
+import '../widgets/auth_gate.dart';
+import '../widgets/cart_action.dart';
+import 'pharmacy_cart_screen.dart';
 import 'pharmacy_product_detail_screen.dart';
 
 const int _featuredCount = 6;
@@ -37,6 +41,7 @@ class _MedCabinetScreenState extends State<MedCabinetScreen> {
   void initState() {
     super.initState();
     _loadFeatured();
+    PharmacyCartState().refresh();
   }
 
   @override
@@ -141,6 +146,13 @@ class _MedCabinetScreenState extends State<MedCabinetScreen> {
             ),
           ),
         ),
+        actions: [
+          CartAction(
+            listenable: PharmacyCartState(),
+            count: () => PharmacyCartState().count,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PharmacyCartScreen())),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -218,6 +230,22 @@ class _MedCabinetScreenState extends State<MedCabinetScreen> {
 class _ProductCard extends StatelessWidget {
   final PharmacyProduct product;
   const _ProductCard({required this.product});
+
+  Future<void> _quickAddToCart(BuildContext context) async {
+    final loggedIn = await ensureLoggedIn(context);
+    if (!loggedIn || !context.mounted) return;
+    try {
+      final result = await ApiService().addToPharmacyCart(product.id);
+      PharmacyCartState().setCount(result['cart_count'] as int? ?? PharmacyCartState().count);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added ${product.name} to cart')));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -311,9 +339,7 @@ class _ProductCard extends StatelessWidget {
                         ),
                         InkWell(
                           borderRadius: BorderRadius.circular(16),
-                          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('${product.name} — contact pharmacy to order')),
-                          ),
+                          onTap: () => _quickAddToCart(context),
                           child: const Padding(
                             padding: EdgeInsets.all(4),
                             child: Icon(Icons.add_shopping_cart, size: 18, color: Colors.teal),

@@ -2,6 +2,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../models/shop_product.dart';
+import '../services/api_service.dart';
+import '../services/cart_state.dart';
+import '../widgets/auth_gate.dart';
+import 'cart_screen.dart';
 
 // The list endpoint (patient_api_products_public) already returns the full
 // gallery, description and variants per product, so this screen renders
@@ -35,12 +39,36 @@ class _ShopProductDetailScreenState extends State<ShopProductDetailScreen> {
     super.dispose();
   }
 
-  void _addToCart(BuildContext context) {
+  bool _addingToCart = false;
+
+  Future<void> _addToCart(BuildContext context) async {
+    final loggedIn = await ensureLoggedIn(context);
+    if (!loggedIn || !context.mounted) return;
+
     final product = widget.product;
     final label = _selectedVariant != null ? '${product.name} (${_selectedVariant!.label})' : product.name;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label — contact store to order')),
-    );
+    setState(() => _addingToCart = true);
+    try {
+      final result = await ApiService().addToCart(product.id, variantId: _selectedVariant?.id);
+      ShopCartState().setCount(result['cart_count'] as int? ?? ShopCartState().count);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Added $label to cart'),
+          action: SnackBarAction(
+            label: 'View Cart',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _addingToCart = false);
+    }
   }
 
   @override
@@ -144,8 +172,10 @@ class _ShopProductDetailScreenState extends State<ShopProductDetailScreen> {
           child: SizedBox(
             height: 50,
             child: ElevatedButton.icon(
-              onPressed: outOfStock ? null : () => _addToCart(context),
-              icon: const Icon(Icons.add_shopping_cart, size: 18),
+              onPressed: (outOfStock || _addingToCart) ? null : () => _addToCart(context),
+              icon: _addingToCart
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.add_shopping_cart, size: 18),
               label: Text(outOfStock ? 'Out of Stock' : 'Add to Cart', style: const TextStyle(fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,

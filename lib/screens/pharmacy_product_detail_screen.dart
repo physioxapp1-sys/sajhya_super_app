@@ -2,24 +2,59 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../models/pharmacy_product.dart';
+import '../services/api_service.dart';
+import '../services/cart_state.dart';
+import '../widgets/auth_gate.dart';
+import 'pharmacy_cart_screen.dart';
 
 // The list endpoint (patient_api_pharmacy_products_public) already returns
 // everything PharmacyProduct has, so this renders straight from the object
 // Med Cabinet already fetched -- no separate detail API call needed.
 // Unlike Shop's Product, PharmacyProduct has no gallery/variants (see the
 // model's own doc comment), so this is a single image, no options picker.
-class PharmacyProductDetailScreen extends StatelessWidget {
+class PharmacyProductDetailScreen extends StatefulWidget {
   final PharmacyProduct product;
   const PharmacyProductDetailScreen({super.key, required this.product});
 
-  void _addToCart(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${product.name} — contact pharmacy to order')),
-    );
+  @override
+  State<PharmacyProductDetailScreen> createState() => _PharmacyProductDetailScreenState();
+}
+
+class _PharmacyProductDetailScreenState extends State<PharmacyProductDetailScreen> {
+  bool _addingToCart = false;
+
+  Future<void> _addToCart(BuildContext context) async {
+    final loggedIn = await ensureLoggedIn(context);
+    if (!loggedIn || !context.mounted) return;
+
+    final product = widget.product;
+    setState(() => _addingToCart = true);
+    try {
+      final result = await ApiService().addToPharmacyCart(product.id);
+      PharmacyCartState().setCount(result['cart_count'] as int? ?? PharmacyCartState().count);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Added ${product.name} to cart'),
+          action: SnackBarAction(
+            label: 'View Cart',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PharmacyCartScreen())),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _addingToCart = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final product = widget.product;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
@@ -39,7 +74,7 @@ class PharmacyProductDetailScreen extends StatelessWidget {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          _buildImage(),
+          _buildImage(product),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             child: Column(
@@ -128,8 +163,10 @@ class PharmacyProductDetailScreen extends StatelessWidget {
           child: SizedBox(
             height: 50,
             child: ElevatedButton.icon(
-              onPressed: product.inStock ? () => _addToCart(context) : null,
-              icon: const Icon(Icons.add_shopping_cart, size: 18),
+              onPressed: (product.inStock && !_addingToCart) ? () => _addToCart(context) : null,
+              icon: _addingToCart
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.add_shopping_cart, size: 18),
               label: Text(product.inStock ? 'Add to Cart' : 'Out of Stock', style: const TextStyle(fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,
@@ -145,7 +182,7 @@ class PharmacyProductDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildImage() {
+  Widget _buildImage(PharmacyProduct product) {
     return AspectRatio(
       aspectRatio: 1.1,
       child: Stack(

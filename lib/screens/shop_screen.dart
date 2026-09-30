@@ -6,6 +6,10 @@ import 'package:flutter/material.dart';
 
 import '../models/shop_product.dart';
 import '../services/api_service.dart';
+import '../services/cart_state.dart';
+import '../widgets/auth_gate.dart';
+import '../widgets/cart_action.dart';
+import 'cart_screen.dart';
 import 'shop_product_detail_screen.dart';
 
 class ShopScreen extends StatefulWidget {
@@ -37,6 +41,7 @@ class _ShopScreenState extends State<ShopScreen> {
   void initState() {
     super.initState();
     _loadDefault();
+    ShopCartState().refresh();
   }
 
   @override
@@ -141,6 +146,13 @@ class _ShopScreenState extends State<ShopScreen> {
             ),
           ),
         ),
+        actions: [
+          CartAction(
+            listenable: ShopCartState(),
+            count: () => ShopCartState().count,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -228,6 +240,22 @@ class _ProductCard extends StatelessWidget {
       backgroundColor: Colors.white,
       builder: (_) => _VariantSheet(product: product),
     );
+  }
+
+  Future<void> _quickAddToCart(BuildContext context) async {
+    final loggedIn = await ensureLoggedIn(context);
+    if (!loggedIn || !context.mounted) return;
+    try {
+      final result = await ApiService().addToCart(product.id);
+      ShopCartState().setCount(result['cart_count'] as int? ?? ShopCartState().count);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added ${product.name} to cart')));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   @override
@@ -329,11 +357,7 @@ class _ProductCard extends StatelessWidget {
                         ),
                         InkWell(
                           borderRadius: BorderRadius.circular(16),
-                          onTap: () => hasVariants
-                              ? _showVariantSheet(context)
-                              : ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('${product.name} — contact store to order')),
-                                ),
+                          onTap: () => hasVariants ? _showVariantSheet(context) : _quickAddToCart(context),
                           child: Padding(
                             padding: const EdgeInsets.all(4),
                             child: Icon(hasVariants ? Icons.tune : Icons.add_shopping_cart, size: 18, color: Colors.teal),
@@ -355,6 +379,25 @@ class _ProductCard extends StatelessWidget {
 class _VariantSheet extends StatelessWidget {
   final ShopProduct product;
   const _VariantSheet({required this.product});
+
+  Future<void> _addToCart(BuildContext context, ShopProductVariant variant) async {
+    final loggedIn = await ensureLoggedIn(context);
+    if (!loggedIn || !context.mounted) return;
+    try {
+      final result = await ApiService().addToCart(product.id, variantId: variant.id);
+      ShopCartState().setCount(result['cart_count'] as int? ?? ShopCartState().count);
+      if (!context.mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Added ${product.name} (${variant.label}) to cart')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -392,14 +435,7 @@ class _VariantSheet extends StatelessWidget {
                         const SizedBox(width: 8),
                         IconButton(
                           icon: const Icon(Icons.add_circle_outline, color: Colors.teal),
-                          onPressed: v.inStock
-                              ? () {
-                                  Navigator.pop(context);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('${product.name} (${v.label}) — contact store to order')),
-                                  );
-                                }
-                              : null,
+                          onPressed: v.inStock ? () => _addToCart(context, v) : null,
                         ),
                       ],
                     ),
