@@ -357,4 +357,20 @@ class ApiService {
     final d = jsonDecode(r.data as String);
     return List<Map<String, dynamic>>.from(d['lab_requests']);
   }
+
+  // ── Medical profile (requires login) ────────────────────────────────────────
+  // Full payload includes allergies/history/nursing plus every Medical
+  // Profile tab's list (medications, blood_tests, aids, saved_exercises,
+  // assessment_entries, diet_entries, consultations, prescriptions,
+  // upcoming_doses) -- see patient_app.views._medical_profile_dict on the
+  // backend for the exact shape. The app only consumes prescriptions/
+  // upcoming_doses today (Pharmacy's Rx status + dosage cards); the rest of
+  // the payload is just along for the ride, not parsed yet.
+
+  Future<Map<String, dynamic>> getMedicalProfile() async {
+    await init();
+    final r = await _dio.get('/api/medical-profile/');
+    final d = jsonDecode(r.data as String);
+    return d['medical_profile'] as Map<String, dynamic>;
+  }
 }

@@ -1,23 +1,9 @@
 import 'package:flutter/material.dart';
 
-class RxItem {
-  final String name;
-  final String statusLabel;
-  final int progressPercent;
-  final String eta;
-
-  const RxItem({
-    required this.name,
-    required this.statusLabel,
-    required this.progressPercent,
-    required this.eta,
-  });
-
-  bool get isReady => progressPercent >= 100;
-}
+import '../models/prescription.dart';
 
 class PrescriptionsScreen extends StatelessWidget {
-  final List<RxItem> prescriptions;
+  final List<Prescription> prescriptions;
 
   const PrescriptionsScreen({super.key, required this.prescriptions});
 
@@ -33,12 +19,12 @@ class PrescriptionsScreen extends StatelessWidget {
           onPressed: () => Navigator.maybePop(context),
         ),
         title: const Text(
-          'Prescription Status',
+          'Prescriptions',
           style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ),
       body: prescriptions.isEmpty
-          ? const Center(child: Text('No active prescriptions right now.'))
+          ? const Center(child: Text('No prescriptions on file yet.'))
           : ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: prescriptions.length,
@@ -49,14 +35,27 @@ class PrescriptionsScreen extends StatelessWidget {
   }
 }
 
+// Matches the web Medical Profile's own status badge colors
+// (.mp-rx-status-active/completed/discontinued): green/gray/red.
+MaterialColor _statusColor(String status) {
+  switch (status) {
+    case 'active':
+      return Colors.green;
+    case 'discontinued':
+      return Colors.red;
+    default:
+      return Colors.grey;
+  }
+}
+
 class _RxCard extends StatelessWidget {
-  final RxItem item;
+  final Prescription item;
 
   const _RxCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
-    final badgeColor = item.isReady ? Colors.green : Colors.orange;
+    final color = _statusColor(item.status);
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -69,36 +68,44 @@ class _RxCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Text(
-                    item.name,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  child: Text(item.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: badgeColor.shade50, borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8)),
                   child: Text(
-                    '${item.statusLabel.toUpperCase()} (${item.progressPercent}%)',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: badgeColor.shade800),
+                    item.status.toUpperCase(),
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800),
                   ),
                 ),
               ],
             ),
+            if (item.dosage.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(item.dosage, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+            ],
             const SizedBox(height: 6),
-            Text(item.eta, style: const TextStyle(color: Colors.black54)),
-            const SizedBox(height: 14),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: item.progressPercent / 100,
-                minHeight: 8,
-                backgroundColor: const Color(0xFFE0E0E0),
-                color: item.isReady ? Colors.green : Colors.teal,
-              ),
+            Text(
+              'Taken ${item.timeOfDayLabel.toLowerCase()} -- since ${_formatDate(item.startDate)}'
+              '${item.endDate != null ? ' until ${_formatDate(item.endDate!)}' : ''}',
+              style: const TextStyle(color: Colors.black54, fontSize: 13),
             ),
+            if (item.issuedBy != null) ...[
+              const SizedBox(height: 4),
+              Text('Prescribed by Dr. ${item.issuedBy}', style: const TextStyle(color: Colors.black45, fontSize: 12)),
+            ],
+            if (item.notes.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(item.notes, style: const TextStyle(color: Colors.black54, fontSize: 13, fontStyle: FontStyle.italic)),
+            ],
           ],
         ),
       ),
     );
   }
+}
+
+String _formatDate(DateTime d) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${d.day} ${months[d.month - 1]} ${d.year}';
 }

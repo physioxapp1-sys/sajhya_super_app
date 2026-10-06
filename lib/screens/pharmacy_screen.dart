@@ -1,35 +1,65 @@
 import 'package:flutter/material.dart';
 
+import '../models/prescription.dart';
+import '../services/api_service.dart';
+import '../services/auth_state.dart';
+import '../widgets/auth_gate.dart';
 import 'med_cabinet_screen.dart';
 import 'prescriptions_screen.dart';
 
-class PharmacyScreen extends StatelessWidget {
+class PharmacyScreen extends StatefulWidget {
   const PharmacyScreen({super.key});
 
-  // TODO: replace with the patient's real active prescriptions once the
-  // pharmacy backend is wired for prescriptions (see how lab_test_screen.dart
-  // pulls from a live API for the equivalent pattern -- the medicine catalog
-  // itself is wired the same way now, via Med Cabinet; Rx status is not yet).
-  static const List<RxItem> _activePrescriptions = [
-    RxItem(
-      name: 'Amoxicillin 500mg (Refill #2)',
-      statusLabel: 'Preparing',
-      progressPercent: 80,
-      eta: 'Est. Ready: Today at 4:30 PM',
-    ),
-    RxItem(
-      name: 'Metformin 500mg',
-      statusLabel: 'Ready for pickup',
-      progressPercent: 100,
-      eta: 'Ready now',
-    ),
-    RxItem(
-      name: 'Cetirizine 10mg',
-      statusLabel: 'Preparing',
-      progressPercent: 40,
-      eta: 'Est. Ready: Tomorrow, 10:00 AM',
-    ),
-  ];
+  @override
+  State<PharmacyScreen> createState() => _PharmacyScreenState();
+}
+
+class _PharmacyScreenState extends State<PharmacyScreen> {
+  List<Prescription>? _prescriptions;
+  List<UpcomingDose>? _upcomingDoses;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  // Pharmacy is browsable without login (soft gate), so a failed fetch here
+  // -- whether that's "not logged in" or a genuine network error -- just
+  // falls back to the same lightweight sign-in/retry prompt rather than
+  // forcing a login screen open on page load. Mirrors how AuthState.checkSession
+  // treats any failure from a login-required call uniformly.
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final profile = await ApiService().getMedicalProfile();
+      final prescriptions = (profile['prescriptions'] as List<dynamic>? ?? [])
+          .map((e) => Prescription.fromJson(e as Map<String, dynamic>))
+          .toList();
+      final doses = (profile['upcoming_doses'] as List<dynamic>? ?? [])
+          .map((e) => UpcomingDose.fromJson(e as Map<String, dynamic>))
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _prescriptions = prescriptions;
+        _upcomingDoses = doses;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _prescriptions = null;
+        _upcomingDoses = null;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _signInAndReload() async {
+    final ok = await ensureLoggedIn(context);
+    if (ok) _load();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,19 +116,62 @@ class PharmacyScreen extends StatelessWidget {
 
   // --- Widget Builders ---
 
+  Widget _buildSignInPrompt(String message) {
+    final loggedIn = AuthState().isLoggedIn;
+    return Card(
+      elevation: 0,
+      color: Colors.teal.shade50,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Icon(Icons.medical_information_outlined, color: Colors.teal.shade700),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(message, style: TextStyle(color: Colors.teal.shade900, fontSize: 13)),
+            ),
+            TextButton(
+              onPressed: _signInAndReload,
+              child: Text(loggedIn ? 'Retry' : 'Sign In'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildRxStatusCard(BuildContext context) {
-    if (_activePrescriptions.isEmpty) {
-      return const SizedBox.shrink();
+    if (_loading) {
+      return const Card(
+        elevation: 1,
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
     }
-    final headline = _activePrescriptions.first;
-    final moreCount = _activePrescriptions.length - 1;
+    if (_prescriptions == null) {
+      return _buildSignInPrompt('Sign in to see your current prescriptions.');
+    }
+    final active = _prescriptions!.where((p) => p.isActive).toList();
+    if (active.isEmpty) {
+      return Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text('No active prescriptions right now.', style: TextStyle(color: Colors.black54)),
+        ),
+      );
+    }
+    final headline = active.first;
+    final moreCount = active.length - 1;
 
     void openAll() {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => const PrescriptionsScreen(prescriptions: _activePrescriptions),
-        ),
+        MaterialPageRoute(builder: (_) => PrescriptionsScreen(prescriptions: _prescriptions!)),
       );
     }
 
@@ -119,35 +192,29 @@ class PharmacyScreen extends StatelessWidget {
                   const Text('CURRENT RX STATUS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal)),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
                     child: Text(
-                      '${headline.statusLabel.toUpperCase()} (${headline.progressPercent}%)',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
+                      'ACTIVE',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade800),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
               Text(headline.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              if (headline.dosage.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(headline.dosage, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+              ],
               const SizedBox(height: 4),
-              Text(headline.eta, style: const TextStyle(color: Colors.black54)),
-              const SizedBox(height: 16),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: headline.progressPercent / 100,
-                  minHeight: 8,
-                  backgroundColor: const Color(0xFFE0E0E0),
-                  color: Colors.teal,
-                ),
-              ),
+              Text('Taken ${headline.timeOfDayLabel.toLowerCase()}', style: const TextStyle(color: Colors.black54)),
               if (moreCount > 0) ...[
                 const SizedBox(height: 14),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '+$moreCount more prescription${moreCount == 1 ? '' : 's'} in progress',
+                      '+$moreCount more prescription${moreCount == 1 ? '' : 's'}',
                       style: const TextStyle(fontSize: 12, color: Colors.black54),
                     ),
                     TextButton(
@@ -210,6 +277,28 @@ class PharmacyScreen extends StatelessWidget {
   }
 
   Widget _buildUpcomingDosagesCard() {
+    if (_loading) {
+      return const Card(
+        elevation: 1,
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+    if (_upcomingDoses == null) {
+      return _buildSignInPrompt('Sign in to see your upcoming doses.');
+    }
+    if (_upcomingDoses!.isEmpty) {
+      return Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text('No doses due in the next 24 hours.', style: TextStyle(color: Colors.black54)),
+        ),
+      );
+    }
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -217,16 +306,17 @@ class PharmacyScreen extends StatelessWidget {
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            _buildDosageRow('12:00 PM', 'Atorvastatin 20mg', 'Take with food'),
-            const Divider(height: 24),
-            _buildDosageRow('6:00 PM', 'Lisinopril 10mg', 'On empty stomach'),
+            for (int i = 0; i < _upcomingDoses!.length; i++) ...[
+              if (i > 0) const Divider(height: 24),
+              _buildDosageRow(_upcomingDoses![i]),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDosageRow(String time, String medName, String instruction) {
+  Widget _buildDosageRow(UpcomingDose dose) {
     return Row(
       children: [
         Icon(Icons.check_box_outline_blank, color: Colors.teal.shade300, size: 24),
@@ -235,8 +325,11 @@ class PharmacyScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('$time - $medName', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-              Text(instruction, style: const TextStyle(color: Colors.black54, fontSize: 13)),
+              Text('${_formatNepalTime(dose.doseAt)} - ${dose.name}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              Text(
+                dose.dosage.isNotEmpty ? dose.dosage : dose.slotLabel,
+                style: const TextStyle(color: Colors.black54, fontSize: 13),
+              ),
             ],
           ),
         ),
@@ -285,4 +378,17 @@ class PharmacyScreen extends StatelessWidget {
       ],
     );
   }
+}
+
+// Dose times come from the backend as Nepal-local clock times serialized
+// with their UTC+05:45 offset (get_nepal_time() in personal_account/models.py
+// -- this app is Nepal-only). DateTime.parse keeps that as an absolute
+// instant, not a Nepal wall-clock time, so it's converted back explicitly
+// here rather than trusting the device's own timezone to match.
+String _formatNepalTime(DateTime instant) {
+  final nepal = instant.toUtc().add(const Duration(hours: 5, minutes: 45));
+  final hour12 = nepal.hour % 12 == 0 ? 12 : nepal.hour % 12;
+  final period = nepal.hour < 12 ? 'AM' : 'PM';
+  final minute = nepal.minute.toString().padLeft(2, '0');
+  return '$hour12:$minute $period';
 }
