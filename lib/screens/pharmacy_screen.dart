@@ -17,6 +17,7 @@ class PharmacyScreen extends StatefulWidget {
 class _PharmacyScreenState extends State<PharmacyScreen> {
   List<Prescription>? _prescriptions;
   List<UpcomingDose>? _upcomingDoses;
+  List<Medication>? _medications;
   bool _loading = true;
 
   @override
@@ -40,10 +41,14 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
       final doses = (profile['upcoming_doses'] as List<dynamic>? ?? [])
           .map((e) => UpcomingDose.fromJson(e as Map<String, dynamic>))
           .toList();
+      final medications = (profile['medications'] as List<dynamic>? ?? [])
+          .map((e) => Medication.fromJson(e as Map<String, dynamic>))
+          .toList();
       if (!mounted) return;
       setState(() {
         _prescriptions = prescriptions;
         _upcomingDoses = doses;
+        _medications = medications;
         _loading = false;
       });
     } catch (_) {
@@ -51,6 +56,7 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
       setState(() {
         _prescriptions = null;
         _upcomingDoses = null;
+        _medications = null;
         _loading = false;
       });
     }
@@ -85,6 +91,21 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
             // 1. Anxiety Reduction Section: Live Rx Status Tracker
             _buildRxStatusCard(context),
             const SizedBox(height: 20),
+
+            // 1b. Medicine Reminders -- the separate, patient/physio-editable
+            // "what I take" list (PatientMedication), distinct from the
+            // doctor-issued Rx above. Only shown once there's something to
+            // show, same as the Rx card hiding itself when empty-by-design
+            // would just be noise.
+            if (!_loading && _medications != null && _medications!.isNotEmpty) ...[
+              const Text(
+                'MEDICINE REMINDERS',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
+              ),
+              const SizedBox(height: 8),
+              _buildMedicationRemindersCard(),
+              const SizedBox(height: 20),
+            ],
 
             // 2. Cognitive Simplicity Section: Quick Actions Grid (Max 4 items)
             const Text(
@@ -232,6 +253,43 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
     );
   }
 
+  Widget _buildMedicationRemindersCard() {
+    final medications = _medications!;
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          children: [
+            for (int i = 0; i < medications.length; i++) ...[
+              if (i > 0) const Divider(height: 24),
+              Row(
+                children: [
+                  Icon(Icons.medication_outlined, color: Colors.teal.shade300, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${medications[i].timeOfDayLabel} - ${medications[i].name}',
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                        ),
+                        if (medications[i].instructions.isNotEmpty)
+                          Text(medications[i].instructions, style: const TextStyle(color: Colors.black54, fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildQuickActionsGrid(BuildContext context) {
     return GridView.count(
       shrinkWrap: true,
@@ -276,6 +334,25 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
     );
   }
 
+  // Merges the backend's real Rx-based upcoming_doses with a client-side
+  // "next occurrence" computed for each plain Medicine Reminder (see
+  // Medication.nextDoseAt's doc comment for why that half isn't backend-
+  // computed) into one time-sorted list.
+  List<_DoseRow> _buildDoseRows() {
+    final rows = <_DoseRow>[
+      for (final d in _upcomingDoses ?? const <UpcomingDose>[])
+        _DoseRow(doseAt: d.doseAt, name: d.name, subtitle: d.dosage.isNotEmpty ? d.dosage : d.slotLabel),
+    ];
+    final nowNepal = _nepalNow();
+    for (final m in _medications ?? const <Medication>[]) {
+      final at = m.nextDoseAt(nowNepal);
+      if (at == null) continue;
+      rows.add(_DoseRow(doseAt: at, name: m.name, subtitle: m.instructions.isNotEmpty ? m.instructions : m.timeOfDayLabel));
+    }
+    rows.sort((a, b) => a.doseAt.compareTo(b.doseAt));
+    return rows;
+  }
+
   Widget _buildUpcomingDosagesCard() {
     if (_loading) {
       return const Card(
@@ -286,10 +363,11 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
         ),
       );
     }
-    if (_upcomingDoses == null) {
+    if (_upcomingDoses == null && _medications == null) {
       return _buildSignInPrompt('Sign in to see your upcoming doses.');
     }
-    if (_upcomingDoses!.isEmpty) {
+    final rows = _buildDoseRows();
+    if (rows.isEmpty) {
       return Card(
         elevation: 1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -306,9 +384,9 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            for (int i = 0; i < _upcomingDoses!.length; i++) ...[
+            for (int i = 0; i < rows.length; i++) ...[
               if (i > 0) const Divider(height: 24),
-              _buildDosageRow(_upcomingDoses![i]),
+              _buildDosageRow(rows[i]),
             ],
           ],
         ),
@@ -316,7 +394,7 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
     );
   }
 
-  Widget _buildDosageRow(UpcomingDose dose) {
+  Widget _buildDosageRow(_DoseRow dose) {
     return Row(
       children: [
         Icon(Icons.check_box_outline_blank, color: Colors.teal.shade300, size: 24),
@@ -326,10 +404,7 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('${_formatNepalTime(dose.doseAt)} - ${dose.name}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-              Text(
-                dose.dosage.isNotEmpty ? dose.dosage : dose.slotLabel,
-                style: const TextStyle(color: Colors.black54, fontSize: 13),
-              ),
+              Text(dose.subtitle, style: const TextStyle(color: Colors.black54, fontSize: 13)),
             ],
           ),
         ),
@@ -380,6 +455,16 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
   }
 }
 
+// One row in the merged "Upcoming Dosages" list -- either a real Rx dose
+// (from the backend) or a computed Medicine Reminder next-occurrence; by
+// the time it's a _DoseRow the two are indistinguishable for display.
+class _DoseRow {
+  final DateTime doseAt;
+  final String name;
+  final String subtitle;
+  const _DoseRow({required this.doseAt, required this.name, required this.subtitle});
+}
+
 // Dose times come from the backend as Nepal-local clock times serialized
 // with their UTC+05:45 offset (get_nepal_time() in personal_account/models.py
 // -- this app is Nepal-only). DateTime.parse keeps that as an absolute
@@ -392,3 +477,9 @@ String _formatNepalTime(DateTime instant) {
   final minute = nepal.minute.toString().padLeft(2, '0');
   return '$hour12:$minute $period';
 }
+
+// "Now" in Nepal wall-clock terms, stored as a UTC-flagged DateTime purely
+// as a field-holding trick (see Medication.nextDoseAt) -- mirrors how
+// _formatNepalTime derives Nepal fields from a real instant, just starting
+// from the device's current time instead of a parsed one.
+DateTime _nepalNow() => DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 45));
