@@ -16,6 +16,7 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
@@ -25,6 +26,7 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -36,13 +38,20 @@ class _SignupScreenState extends State<SignupScreen> {
       _error = null;
     });
     try {
-      final result = await ApiService().signup(_nameController.text.trim(), _passwordController.text);
+      final result = await ApiService().signup(
+        _nameController.text.trim(),
+        _passwordController.text,
+        username: _usernameController.text.trim(),
+      );
       if (result['success'] != true) {
         throw Exception(result['error'] ?? 'Could not create account');
       }
       AuthState().setLoggedIn(result);
       if (!mounted) return;
-      await _showPatientCodeDialog(result['patient_code'] as String? ?? '');
+      await _showPatientCodeDialog(
+        result['patient_code'] as String? ?? '',
+        result['username'] as String?,
+      );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
@@ -51,7 +60,7 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
-  Future<void> _showPatientCodeDialog(String patientCode) {
+  Future<void> _showPatientCodeDialog(String patientCode, String? username) {
     return showDialog(
       context: context,
       barrierDismissible: false,
@@ -61,7 +70,11 @@ class _SignupScreenState extends State<SignupScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("This is your Patient Code. Save it — you'll need it with your password to sign in next time."),
+            Text(
+              username != null && username.isNotEmpty
+                  ? "This is your Patient Code. Save it -- you can sign in with it or with your username (\"$username\") and your password."
+                  : "This is your Patient Code. Save it — you'll need it with your password to sign in next time.",
+            ),
             const SizedBox(height: 16),
             Container(
               width: double.infinity,
@@ -131,6 +144,22 @@ class _SignupScreenState extends State<SignupScreen> {
                     controller: _nameController,
                     decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person_outline)),
                     validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your name' : null,
+                  ),
+                  const SizedBox(height: 18),
+                  TextFormField(
+                    controller: _usernameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Username (optional)',
+                      helperText: "Pick one to sign in with it instead of your Patient Code -- you can skip this.",
+                      helperMaxLines: 2,
+                      prefixIcon: Icon(Icons.alternate_email),
+                    ),
+                    validator: (v) {
+                      final value = v?.trim() ?? '';
+                      if (value.isEmpty) return null;
+                      if (value.length < 3) return 'Username must be at least 3 characters';
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 18),
                   TextFormField(

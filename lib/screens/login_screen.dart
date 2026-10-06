@@ -15,7 +15,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _codeController = TextEditingController();
+  final TextEditingController _identifierController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
@@ -24,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _codeController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -36,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      final result = await ApiService().login(_codeController.text.trim(), _passwordController.text);
+      final result = await ApiService().login(_identifierController.text.trim(), _passwordController.text);
       if (result['success'] != true) {
         throw Exception(result['error'] ?? 'Login failed');
       }
@@ -79,18 +79,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Sign in with your Patient Code and password',
+                    'Sign in with your username or Patient Code',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
                   ),
                   const SizedBox(height: 36),
                   TextFormField(
-                    controller: _codeController,
+                    controller: _identifierController,
                     decoration: const InputDecoration(
-                      labelText: 'Patient Code',
+                      labelText: 'Username or Patient Code',
                       prefixIcon: Icon(Icons.badge_outlined),
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your Patient Code' : null,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your username or Patient Code' : null,
                   ),
                   const SizedBox(height: 18),
                   TextFormField(
@@ -138,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       );
                       if (loggedIn == true && context.mounted) Navigator.pop(context, true);
                     },
-                    child: const Text("Don't have a Patient Code? Create one"),
+                    child: const Text("Don't have an account? Create one"),
                   ),
                 ],
               ),

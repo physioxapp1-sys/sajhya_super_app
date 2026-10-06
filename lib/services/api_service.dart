@@ -52,16 +52,18 @@ class ApiService {
 
   // ── Auth (patient account) ─────────────────────────────────────────────────
 
-  /// `username` is the patient's Patient Code (the backend's own login
-  /// identifier, not an email/username in the usual sense).
-  Future<Map<String, dynamic>> login(String patientCode, String password) async {
+  /// `identifier` is either the patient's chosen username or their
+  /// Patient Code (patient_api_login tries username first, falls back to
+  /// patient_code) -- the backend field is still called `username` either
+  /// way, so that's the JSON key sent regardless of which one this is.
+  Future<Map<String, dynamic>> login(String identifier, String password) async {
     await init();
     try {
       await _ensureCsrfToken();
       final csrf = await _getCsrfToken();
       final r = await _dio.post(
         '/api/login/',
-        data: {'username': patientCode, 'password': password},
+        data: {'username': identifier, 'password': password},
         options: Options(headers: {'X-CSRFToken': csrf}),
       );
       final parsed = jsonDecode(r.data as String);
@@ -72,14 +74,20 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> signup(String name, String password) async {
+  /// `username` is optional -- a patient can always still log in with their
+  /// auto-generated Patient Code if they skip it (see patient_api_signup).
+  Future<Map<String, dynamic>> signup(String name, String password, {String? username}) async {
     await init();
     try {
       await _ensureCsrfToken();
       final csrf = await _getCsrfToken();
       final r = await _dio.post(
         '/api/signup/',
-        data: {'patient_name': name, 'password': password},
+        data: {
+          'patient_name': name,
+          'password': password,
+          if (username != null && username.isNotEmpty) 'username': username,
+        },
         options: Options(headers: {'X-CSRFToken': csrf}),
       );
       final parsed = jsonDecode(r.data as String);
