@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../widgets/auth_gate.dart';
-import 'lab_requests_screen.dart';
+import 'lab_history_screen.dart';
 
 class LabTestScreen extends StatefulWidget {
   const LabTestScreen({super.key});
@@ -158,7 +158,7 @@ class _LabTestScreenState extends State<LabTestScreen> {
   Future<void> _openMyRequests() async {
     final ok = await ensureLoggedIn(context);
     if (!ok || !mounted) return;
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const LabRequestsScreen()));
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const LabHistoryScreen()));
   }
 
   void _showTestDetails(LabTest test) {
@@ -230,7 +230,7 @@ class _LabTestScreenState extends State<LabTestScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.receipt_long_outlined, color: Color(0xFF2384E8)),
-            tooltip: 'My Requests',
+            tooltip: 'My Requests & History',
             onPressed: _openMyRequests,
           ),
         ],

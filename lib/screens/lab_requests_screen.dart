@@ -3,14 +3,22 @@ import 'package:flutter/material.dart';
 import '../models/lab_request.dart';
 import '../services/api_service.dart';
 
-class LabRequestsScreen extends StatefulWidget {
-  const LabRequestsScreen({super.key});
+// Body only (no Scaffold/AppBar) -- hosted inside LabHistoryScreen's "My
+// Requests" tab, alongside TestHistoryBody's "History" tab. Shows
+// LabTestRequest bookings (status-tracked: pending/sample collected/
+// completed/cancelled), distinct from the free-text, no-status
+// PatientBloodTest entries the History tab shows.
+class LabRequestsBody extends StatefulWidget {
+  const LabRequestsBody({super.key});
 
   @override
-  State<LabRequestsScreen> createState() => _LabRequestsScreenState();
+  State<LabRequestsBody> createState() => _LabRequestsBodyState();
 }
 
-class _LabRequestsScreenState extends State<LabRequestsScreen> {
+class _LabRequestsBodyState extends State<LabRequestsBody> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   List<LabRequestSummary>? _requests;
   bool _loading = true;
   String? _error;
@@ -44,22 +52,7 @@ class _LabRequestsScreenState extends State<LabRequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFD),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
-          onPressed: () => Navigator.maybePop(context),
-        ),
-        title: const Text('My Lab Requests', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
-      ),
-      body: _buildBody(),
-    );
-  }
-
-  Widget _buildBody() {
+    super.build(context);
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
