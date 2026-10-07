@@ -61,6 +61,7 @@ class _CartScreenState extends State<CartScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final itemCount = _cart?.items.length ?? 0;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
@@ -70,7 +71,10 @@ class _CartScreenState extends State<CartScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.teal),
           onPressed: () => Navigator.maybePop(context),
         ),
-        title: const Text('Your Cart', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+        title: Text(
+          itemCount > 0 ? 'Your Cart ($itemCount item${itemCount == 1 ? '' : 's'})' : 'Your Cart',
+          style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
       ),
       body: _buildBody(),
       bottomNavigationBar: (_cart != null && _cart!.items.isNotEmpty) ? _buildCheckoutBar() : null,
@@ -107,6 +111,13 @@ class _CartScreenState extends State<CartScreen> {
             Icon(Icons.shopping_cart_outlined, color: Colors.grey[400], size: 48),
             const SizedBox(height: 12),
             Text('Your cart is empty', style: TextStyle(color: Colors.grey[600])),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.maybePop(context),
+              icon: const Icon(Icons.storefront_outlined, size: 18),
+              label: const Text('Continue Shopping'),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.teal, side: const BorderSide(color: Colors.teal)),
+            ),
           ],
         ),
       );
@@ -121,6 +132,7 @@ class _CartScreenState extends State<CartScreen> {
 
   Widget _buildCheckoutBar() {
     final total = _cart!.total;
+    final count = _cart!.count;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
@@ -130,7 +142,7 @@ class _CartScreenState extends State<CartScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Total', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                  Text('Total -- $count item${count == 1 ? '' : 's'}', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                   Text('NPR ${total.toStringAsFixed(0)}',
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
                 ],
@@ -208,9 +220,17 @@ class _CartItemTile extends StatelessWidget {
                 ],
                 const SizedBox(height: 6),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('NPR ${item.price.toStringAsFixed(0)}',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('NPR ${item.itemTotal.toStringAsFixed(0)}',
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal)),
+                        if (item.quantity > 1)
+                          Text('NPR ${item.price.toStringAsFixed(0)} each', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                      ],
+                    ),
                     const Spacer(),
                     _QuantityStepper(quantity: item.quantity, onChanged: onQuantityChanged),
                   ],

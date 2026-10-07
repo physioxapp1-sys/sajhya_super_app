@@ -5,7 +5,6 @@ import '../services/api_service.dart';
 import '../services/auth_state.dart';
 import '../widgets/auth_gate.dart';
 import 'med_cabinet_screen.dart';
-import 'prescriptions_screen.dart';
 
 class PharmacyScreen extends StatefulWidget {
   const PharmacyScreen({super.key});
@@ -15,7 +14,6 @@ class PharmacyScreen extends StatefulWidget {
 }
 
 class _PharmacyScreenState extends State<PharmacyScreen> {
-  List<Prescription>? _prescriptions;
   List<UpcomingDose>? _upcomingDoses;
   List<Medication>? _medications;
   bool _loading = true;
@@ -35,9 +33,6 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
     setState(() => _loading = true);
     try {
       final profile = await ApiService().getMedicalProfile();
-      final prescriptions = (profile['prescriptions'] as List<dynamic>? ?? [])
-          .map((e) => Prescription.fromJson(e as Map<String, dynamic>))
-          .toList();
       final doses = (profile['upcoming_doses'] as List<dynamic>? ?? [])
           .map((e) => UpcomingDose.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -46,7 +41,6 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
           .toList();
       if (!mounted) return;
       setState(() {
-        _prescriptions = prescriptions;
         _upcomingDoses = doses;
         _medications = medications;
         _loading = false;
@@ -54,7 +48,6 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _prescriptions = null;
         _upcomingDoses = null;
         _medications = null;
         _loading = false;
@@ -88,15 +81,10 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Anxiety Reduction Section: Live Rx Status Tracker
-            _buildRxStatusCard(context),
-            const SizedBox(height: 20),
-
-            // 1b. Medicine Reminders -- the separate, patient/physio-editable
-            // "what I take" list (PatientMedication), distinct from the
-            // doctor-issued Rx above. Only shown once there's something to
-            // show, same as the Rx card hiding itself when empty-by-design
-            // would just be noise.
+            // 1. Medicine Reminders -- the patient/physio-editable "what I
+            // take" list (PatientMedication). Only shown once there's
+            // something to show, so an empty profile doesn't just render
+            // empty whitespace at the top of the screen.
             if (!_loading && _medications != null && _medications!.isNotEmpty) ...[
               const Text(
                 'MEDICINE REMINDERS',
@@ -162,99 +150,11 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
     );
   }
 
-  Widget _buildRxStatusCard(BuildContext context) {
-    if (_loading) {
-      return const Card(
-        elevation: 1,
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-      );
-    }
-    if (_prescriptions == null) {
-      return _buildSignInPrompt('Sign in to see your current prescriptions.');
-    }
-    final active = _prescriptions!.where((p) => p.isActive).toList();
-    if (active.isEmpty) {
-      return Card(
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: const Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text('No active prescriptions right now.', style: TextStyle(color: Colors.black54)),
-        ),
-      );
-    }
-    final headline = active.first;
-    final moreCount = active.length - 1;
-
-    void openAll() {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => PrescriptionsScreen(prescriptions: _prescriptions!)),
-      );
-    }
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: openAll,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('CURRENT RX STATUS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal)),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
-                    child: Text(
-                      'ACTIVE',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade800),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(headline.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              if (headline.dosage.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(headline.dosage, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
-              ],
-              const SizedBox(height: 4),
-              Text('Taken ${headline.timeOfDayLabel.toLowerCase()}', style: const TextStyle(color: Colors.black54)),
-              if (moreCount > 0) ...[
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '+$moreCount more prescription${moreCount == 1 ? '' : 's'}',
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
-                    ),
-                    TextButton(
-                      onPressed: openAll,
-                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(50, 30)),
-                      child: const Text('View All', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildMedicationRemindersCard() {
-    final medications = _medications!;
+    // Backend ordering is time_of_day/created_at, which sorts alphabetically
+    // (evening, morning, night) rather than chronologically -- re-sorted
+    // here to the actual order the day happens in.
+    final medications = [..._medications!]..sort((a, b) => _slotRank(a.timeOfDay).compareTo(_slotRank(b.timeOfDay)));
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -263,29 +163,44 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
         child: Column(
           children: [
             for (int i = 0; i < medications.length; i++) ...[
-              if (i > 0) const Divider(height: 24),
-              Row(
-                children: [
-                  Icon(Icons.medication_outlined, color: Colors.teal.shade300, size: 22),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${medications[i].timeOfDayLabel} - ${medications[i].name}',
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                        ),
-                        if (medications[i].instructions.isNotEmpty)
-                          Text(medications[i].instructions, style: const TextStyle(color: Colors.black54, fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                ],
+              if (i > 0) const SizedBox(height: 8),
+              _buildSlotRow(
+                slot: medications[i].timeOfDay,
+                title: '${medications[i].timeOfDayLabel} - ${medications[i].name}',
+                subtitle: medications[i].instructions,
               ),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  // Shared row chrome for both the Medicine Reminders and Upcoming Dosages
+  // cards: a light tint of green per time-of-day slot (morning lightest,
+  // night darkest) so entries visually group by when they're taken at a
+  // glance, without needing a separate section header per slot.
+  Widget _buildSlotRow({required String slot, required String title, required String subtitle}) {
+    final bg = _slotBackground(slot);
+    final accent = _slotAccent(slot);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          Icon(Icons.circle, color: accent, size: 12),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: accent)),
+                if (subtitle.isNotEmpty)
+                  Text(subtitle, style: const TextStyle(color: Colors.black54, fontSize: 13)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -337,17 +252,29 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
   // Merges the backend's real Rx-based upcoming_doses with a client-side
   // "next occurrence" computed for each plain Medicine Reminder (see
   // Medication.nextDoseAt's doc comment for why that half isn't backend-
-  // computed) into one time-sorted list.
+  // computed) into one list, ascending by time (soonest dose first).
   List<_DoseRow> _buildDoseRows() {
     final rows = <_DoseRow>[
       for (final d in _upcomingDoses ?? const <UpcomingDose>[])
-        _DoseRow(doseAt: d.doseAt, name: d.name, subtitle: d.dosage.isNotEmpty ? d.dosage : d.slotLabel),
+        _DoseRow(
+          doseAt: d.doseAt,
+          name: d.name,
+          subtitle: d.dosage.isNotEmpty ? d.dosage : d.slotLabel,
+          // Django's get_FOO_display() just capitalizes the TIME_CHOICES key
+          // (morning -> "Morning"), so this reliably recovers the raw slot.
+          slot: d.slotLabel.toLowerCase(),
+        ),
     ];
     final nowNepal = _nepalNow();
     for (final m in _medications ?? const <Medication>[]) {
       final at = m.nextDoseAt(nowNepal);
       if (at == null) continue;
-      rows.add(_DoseRow(doseAt: at, name: m.name, subtitle: m.instructions.isNotEmpty ? m.instructions : m.timeOfDayLabel));
+      rows.add(_DoseRow(
+        doseAt: at,
+        name: m.name,
+        subtitle: m.instructions.isNotEmpty ? m.instructions : m.timeOfDayLabel,
+        slot: m.timeOfDay,
+      ));
     }
     rows.sort((a, b) => a.doseAt.compareTo(b.doseAt));
     return rows;
@@ -385,30 +312,16 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
         child: Column(
           children: [
             for (int i = 0; i < rows.length; i++) ...[
-              if (i > 0) const Divider(height: 24),
-              _buildDosageRow(rows[i]),
+              if (i > 0) const SizedBox(height: 8),
+              _buildSlotRow(
+                slot: rows[i].slot,
+                title: '${_formatNepalTime(rows[i].doseAt)} - ${rows[i].name}',
+                subtitle: rows[i].subtitle,
+              ),
             ],
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildDosageRow(_DoseRow dose) {
-    return Row(
-      children: [
-        Icon(Icons.check_box_outline_blank, color: Colors.teal.shade300, size: 24),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${_formatNepalTime(dose.doseAt)} - ${dose.name}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-              Text(dose.subtitle, style: const TextStyle(color: Colors.black54, fontSize: 13)),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -458,11 +371,60 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
 // One row in the merged "Upcoming Dosages" list -- either a real Rx dose
 // (from the backend) or a computed Medicine Reminder next-occurrence; by
 // the time it's a _DoseRow the two are indistinguishable for display.
+// `slot` is the raw time-of-day key ('morning'/'evening'/'night'), used
+// only for the shade-of-green grouping color, not for sorting (doseAt is).
 class _DoseRow {
   final DateTime doseAt;
   final String name;
   final String subtitle;
-  const _DoseRow({required this.doseAt, required this.name, required this.subtitle});
+  final String slot;
+  const _DoseRow({required this.doseAt, required this.name, required this.subtitle, required this.slot});
+}
+
+// Chronological rank for the three slots -- used to display Medicine
+// Reminders in the order the day actually happens in, since the backend's
+// own ordering (time_of_day, created_at) sorts those three choice keys
+// alphabetically (evening, morning, night).
+int _slotRank(String slot) {
+  switch (slot) {
+    case 'morning':
+      return 0;
+    case 'evening':
+      return 1;
+    case 'night':
+      return 2;
+    default:
+      return 3;
+  }
+}
+
+// Shared green-shade mapping so Medicine Reminders and Upcoming Dosages
+// group visually by time-of-day the same way: lighter green earlier in the
+// day, darker toward night.
+Color _slotBackground(String slot) {
+  switch (slot) {
+    case 'morning':
+      return Colors.green.shade50;
+    case 'evening':
+      return Colors.green.shade100;
+    case 'night':
+      return Colors.green.shade200;
+    default:
+      return Colors.green.shade50;
+  }
+}
+
+Color _slotAccent(String slot) {
+  switch (slot) {
+    case 'morning':
+      return Colors.green.shade400;
+    case 'evening':
+      return Colors.green.shade700;
+    case 'night':
+      return Colors.green.shade900;
+    default:
+      return Colors.green.shade700;
+  }
 }
 
 // Dose times come from the backend as Nepal-local clock times serialized
