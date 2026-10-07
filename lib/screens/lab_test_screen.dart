@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../widgets/auth_gate.dart';
+import 'lab_requests_screen.dart';
 
 class LabTestScreen extends StatefulWidget {
   const LabTestScreen({super.key});
@@ -154,6 +155,12 @@ class _LabTestScreenState extends State<LabTestScreen> {
     }
   }
 
+  Future<void> _openMyRequests() async {
+    final ok = await ensureLoggedIn(context);
+    if (!ok || !mounted) return;
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const LabRequestsScreen()));
+  }
+
   void _showTestDetails(LabTest test) {
     showModalBottomSheet(
       context: context,
@@ -220,6 +227,13 @@ class _LabTestScreenState extends State<LabTestScreen> {
             ),
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.receipt_long_outlined, color: Color(0xFF2384E8)),
+            tooltip: 'My Requests',
+            onPressed: _openMyRequests,
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

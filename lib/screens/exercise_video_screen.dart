@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/exercise_library.dart';
+import '../models/prescribed_exercise.dart';
 import '../services/api_service.dart';
+import '../services/auth_state.dart';
+import '../widgets/auth_gate.dart';
 import '../widgets/exercise_card.dart';
 import 'exercise_list_screen.dart';
 
@@ -86,33 +89,193 @@ class ExerciseVideoScreen extends StatelessWidget {
   }
 }
 
-class _PrescribedTab extends StatelessWidget {
+class _PrescribedTab extends StatefulWidget {
   const _PrescribedTab();
 
   @override
+  State<_PrescribedTab> createState() => _PrescribedTabState();
+}
+
+class _PrescribedTabState extends State<_PrescribedTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  bool _checkingSession = true;
+  bool _loading = false;
+  ExercisePrescription? _prescription;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  // Quietly checks for an already-valid session (e.g. the app was opened
+  // fresh and main.dart's own checkSession() call hasn't resolved yet by
+  // the time this tab builds) rather than assuming AuthState is current --
+  // never forces a login prompt just from opening this tab, same soft-gate
+  // rule as the rest of the app.
+  Future<void> _init() async {
+    if (!AuthState().isLoggedIn) {
+      await AuthState().checkSession();
+    }
+    if (!mounted) return;
+    setState(() => _checkingSession = false);
+    if (AuthState().isLoggedIn) _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final data = await ApiService().getCurrentUser();
+      final raw = data['latest_prescription'];
+      if (!mounted) return;
+      setState(() {
+        _prescription = raw != null ? ExercisePrescription.fromJson(raw as Map<String, dynamic>) : null;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _signInAndLoad() async {
+    final ok = await ensureLoggedIn(context);
+    if (ok) _load();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
+    if (_checkingSession) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (!AuthState().isLoggedIn) {
+      return _message(
+        icon: Icons.lock_outline_rounded,
+        title: 'Sign in to see your prescribed exercises',
+        subtitle: 'Exercises prescribed to you by your physio will show up here once you sign in.',
+        actionLabel: 'Sign In',
+        onAction: _signInAndLoad,
+      );
+    }
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final prescription = _prescription;
+    if (prescription == null || prescription.exercises.isEmpty) {
+      return _message(
+        icon: Icons.fitness_center_rounded,
+        title: 'No prescribed exercises yet',
+        subtitle: 'Once your physio prescribes exercises for you, they\'ll show up here.',
+        actionLabel: 'Refresh',
+        onAction: _load,
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if ((prescription.notes ?? '').trim().isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF4FF),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFD6E9FA)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.notes_rounded, color: Color(0xFF1261B5), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      prescription.notes!,
+                      style: const TextStyle(color: Color(0xFF12366B), fontSize: 13, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          for (final exercise in prescription.exercises) _PrescribedExerciseCard(exercise: exercise),
+        ],
+      ),
+    );
+  }
+
+  Widget _message({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String actionLabel,
+    required VoidCallback onAction,
+  }) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.lock_outline_rounded, size: 48, color: Colors.grey[400]),
+            Icon(icon, size: 48, color: Colors.grey[400]),
             const SizedBox(height: 16),
-            const Text(
-              'Sign in to see your prescribed exercises',
+            Text(
+              title,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
             ),
             const SizedBox(height: 6),
-            Text(
-              'Exercises prescribed to you by your physio will show up here once you have an account.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600]),
-            ),
+            Text(subtitle, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
+            const SizedBox(height: 18),
+            OutlinedButton(onPressed: onAction, child: Text(actionLabel)),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PrescribedExerciseCard extends StatelessWidget {
+  final PrescribedExercise exercise;
+  const _PrescribedExerciseCard({required this.exercise});
+
+  String get _scheduleLabel {
+    final parts = <String>[
+      if (exercise.scheduleMorning) 'Morning',
+      if (exercise.scheduleDay) 'Day',
+      if (exercise.scheduleEvening) 'Evening',
+    ];
+    return parts.join(' • ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _scheduleLabel;
+    return Stack(
+      children: [
+        ExerciseCard(exercise: exercise.toLibraryExercise(), locationLabel: label.isEmpty ? null : label),
+        if (exercise.isCompleted)
+          Positioned(
+            top: 20,
+            right: 20,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(8)),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_rounded, size: 12, color: Colors.white),
+                  SizedBox(width: 3),
+                  Text('Done', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
