@@ -81,21 +81,7 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Medicine Reminders -- the patient/physio-editable "what I
-            // take" list (PatientMedication). Only shown once there's
-            // something to show, so an empty profile doesn't just render
-            // empty whitespace at the top of the screen.
-            if (!_loading && _medications != null && _medications!.isNotEmpty) ...[
-              const Text(
-                'MEDICINE REMINDERS',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
-              ),
-              const SizedBox(height: 8),
-              _buildMedicationRemindersCard(),
-              const SizedBox(height: 20),
-            ],
-
-            // 2. Cognitive Simplicity Section: Quick Actions Grid (Max 4 items)
+            // 1. Quick Actions Grid
             const Text(
               'QUICK ACTIONS',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
@@ -104,17 +90,33 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
             _buildQuickActionsGrid(context),
             const SizedBox(height: 24),
 
-            // 3. Information Provision: Upcoming Dosages
-            const Text(
-              'UPCOMING DOSAGES',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
+            // 2. Upcoming Dosages, with Medicine Reminders tucked behind a
+            // button next to the header instead of its own always-expanded
+            // section -- opens a bottom sheet on tap. Only shown once
+            // there's something to show, so an empty profile doesn't leave
+            // a dead button sitting there.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'UPCOMING DOSAGES',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54, letterSpacing: 1.1),
+                ),
+                if (!_loading && _medications != null && _medications!.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: _showMedicationReminders,
+                    icon: const Icon(Icons.medication_outlined, size: 16),
+                    label: const Text('Reminders'),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(50, 30),
+                      foregroundColor: Colors.teal,
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
             _buildUpcomingDosagesCard(),
-            const SizedBox(height: 20),
-
-            // 4. Convenience Utility: Emergency Pharmacy Map Pin
-            _buildEmergencyPharmacyTile(),
             const SizedBox(height: 20),
           ],
         ),
@@ -145,6 +147,40 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
               child: Text(loggedIn ? 'Retry' : 'Sign In'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showMedicationReminders() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Medicine Reminders',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.black87),
+              ),
+              const SizedBox(height: 14),
+              _buildMedicationRemindersCard(),
+            ],
+          ),
         ),
       ),
     );
@@ -214,9 +250,7 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
       mainAxisSpacing: 12,
       childAspectRatio: 1.3,
       children: [
-        _buildGridItem(Icons.camera_alt_outlined, 'Scan & Upload', 'For new prescriptions', () {}),
         _buildGridItem(Icons.autorenew, '1-Touch Refill', 'Instant re-order', () {}),
-        _buildGridItem(Icons.volunteer_activism_outlined, 'Discounts & Subsidy', 'Apply for govt. subsidy or discounts', () {}),
         _buildGridItem(
           Icons.medical_services_outlined,
           'Med Cabinet',
@@ -319,33 +353,6 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
                 subtitle: rows[i].subtitle,
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmergencyPharmacyTile() {
-    return InkWell(
-      onTap: () {},
-      borderRadius: BorderRadius.circular(16),
-      child: Ink(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(16)),
-        child: Row(
-          children: [
-            const Icon(Icons.map_outlined, color: Colors.teal, size: 28),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text('Find Emergency Pharmacy', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal, fontSize: 16)),
-                  Text('Nearby 24/7 locations open now', style: TextStyle(color: Colors.teal, fontSize: 13)),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_ios, color: Colors.teal, size: 16),
           ],
         ),
       ),
