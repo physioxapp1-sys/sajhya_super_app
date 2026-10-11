@@ -13,6 +13,7 @@ import 'screens/login_screen.dart';
 import 'screens/med_cabinet_screen.dart';
 import 'screens/pharmacy_screen.dart';
 import 'screens/shop_screen.dart';
+import 'screens/smart_search_results_screen.dart';
 import 'services/api_service.dart';
 import 'services/auth_state.dart';
 
@@ -424,6 +425,12 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
     );
   }
 
+  void _runSmartSearch(String query) {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return;
+    Navigator.push(context, MaterialPageRoute(builder: (_) => SmartSearchResultsScreen(query: trimmed)));
+  }
+
   Widget _searchBar() {
     return Container(
       height: 64,
@@ -448,6 +455,8 @@ class _SajhyaHomePageState extends State<SajhyaHomePage> {
           Expanded(
             child: TextField(
               controller: _search,
+              textInputAction: TextInputAction.search,
+              onSubmitted: _runSmartSearch,
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Search medicines, tests, exercises, symptoms...',
