@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../widgets/auth_gate.dart';
+import 'lab_checkout_screen.dart';
 import 'lab_history_screen.dart';
 
 class LabTestScreen extends StatefulWidget {
@@ -21,7 +22,6 @@ class _LabTestScreenState extends State<LabTestScreen> {
   String? _error;
 
   final Set<int> selectedTests = {};
-  bool _submitting = false;
 
   @override
   void initState() {
@@ -111,47 +111,18 @@ class _LabTestScreenState extends State<LabTestScreen> {
     return sum;
   }
 
-  Future<void> _submitRequest() async {
-    if (selectedTests.isEmpty || _submitting) return;
+  Future<void> _openCheckout() async {
+    if (selectedTests.isEmpty) return;
     final canProceed = await ensureLoggedIn(context);
     if (!canProceed || !mounted) return;
 
-    setState(() => _submitting = true);
-    try {
-      final result = await ApiService().submitLabRequest(selectedTests.toList());
-      if (!mounted) return;
+    final selected = _tests.where((t) => selectedTests.contains(t.id)).toList();
+    final success = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => LabCheckoutScreen(tests: selected)),
+    );
+    if (success == true && mounted) {
       setState(() => selectedTests.clear());
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          backgroundColor: Colors.white,
-          title: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green[700]),
-              const SizedBox(width: 8),
-              const Text('Request Sent'),
-            ],
-          ),
-          content: Text(
-            'Request #${result['request_number']}\nTotal: NPR ${result['total']}\n\n'
-            'The clinic will contact you, or you can visit the lab directly.',
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Done'),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', '')), backgroundColor: Colors.redAccent),
-      );
-    } finally {
-      if (mounted) setState(() => _submitting = false);
     }
   }
 
@@ -333,16 +304,14 @@ class _LabTestScreenState extends State<LabTestScreen> {
               ),
             ),
             ElevatedButton(
-              onPressed: _submitting ? null : _submitRequest,
+              onPressed: _openCheckout,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2384E8),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: _submitting
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Request Tests', style: TextStyle(fontWeight: FontWeight.w700)),
+              child: const Text('Review Request', style: TextStyle(fontWeight: FontWeight.w700)),
             ),
           ],
         ),

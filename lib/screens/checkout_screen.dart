@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/cart.dart';
 import '../services/api_service.dart';
 import '../services/cart_state.dart';
 
@@ -10,7 +11,8 @@ import '../services/cart_state.dart';
 class CheckoutScreen extends StatefulWidget {
   final bool isPharmacy;
   final double total;
-  const CheckoutScreen({super.key, required this.isPharmacy, required this.total});
+  final List<CartItem> items;
+  const CheckoutScreen({super.key, required this.isPharmacy, required this.total, required this.items});
 
   @override
   State<CheckoutScreen> createState() => _CheckoutScreenState();
@@ -113,19 +115,56 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           children: [
+            const Text('Order summary', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+            const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.black12),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  const Text('Order total', style: TextStyle(fontSize: 14, color: Colors.black54)),
-                  const Spacer(),
-                  Text('NPR ${widget.total.toStringAsFixed(0)}',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
+                  for (int i = 0; i < widget.items.length; i++) ...[
+                    if (i > 0) const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.items[i].name,
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87),
+                                ),
+                                if (widget.items[i].variantLabel.isNotEmpty)
+                                  Text(widget.items[i].variantLabel, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                                Text('Qty ${widget.items[i].quantity}', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            'NPR ${widget.items[i].itemTotal.toStringAsFixed(0)}',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Row(
+                      children: [
+                        const Text('Order total', style: TextStyle(fontSize: 14, color: Colors.black54)),
+                        const Spacer(),
+                        Text('NPR ${widget.total.toStringAsFixed(0)}',
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),

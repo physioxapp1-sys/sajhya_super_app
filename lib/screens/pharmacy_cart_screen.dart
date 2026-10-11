@@ -157,7 +157,7 @@ class _PharmacyCartScreenState extends State<PharmacyCartScreen> {
               child: ElevatedButton(
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => CheckoutScreen(isPharmacy: true, total: total)),
+                  MaterialPageRoute(builder: (_) => CheckoutScreen(isPharmacy: true, total: total, items: _cart!.items)),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal,
@@ -202,7 +202,12 @@ class _PharmacyCartItemTile extends StatelessWidget {
               child: item.imageUrl != null
                   ? CachedNetworkImage(
                       imageUrl: item.imageUrl!,
+                      width: 60,
+                      height: 60,
                       fit: BoxFit.contain,
+                      placeholder: (_, __) => const Center(
+                        child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                      ),
                       errorWidget: (_, __, ___) => Icon(Icons.medication_outlined, color: Colors.grey[400]),
                     )
                   : Icon(Icons.medication_outlined, color: Colors.grey[400]),
