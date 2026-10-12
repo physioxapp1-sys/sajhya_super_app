@@ -266,6 +266,13 @@ class ApiService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getRefillMedications() async {
+    await init();
+    final r = await _dio.get('/api/pharmacy/refill-medications/');
+    final d = jsonDecode(r.data as String);
+    return List<Map<String, dynamic>>.from(d['medications']);
+  }
+
   // ── Shop / marketplace (browse, no login required) ─────────────────────────
 
   Future<List<Map<String, dynamic>>> getShopProducts({String? search}) async {

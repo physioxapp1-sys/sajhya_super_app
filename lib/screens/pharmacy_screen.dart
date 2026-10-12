@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../services/auth_state.dart';
 import '../widgets/auth_gate.dart';
 import 'med_cabinet_screen.dart';
+import 'refill_screen.dart';
 
 class PharmacyScreen extends StatefulWidget {
   const PharmacyScreen({super.key});
@@ -58,6 +59,12 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
   Future<void> _signInAndReload() async {
     final ok = await ensureLoggedIn(context);
     if (ok) _load();
+  }
+
+  Future<void> _openRefill(BuildContext context) async {
+    final ok = await ensureLoggedIn(context);
+    if (!ok || !context.mounted) return;
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const RefillScreen()));
   }
 
   @override
@@ -250,7 +257,7 @@ class _PharmacyScreenState extends State<PharmacyScreen> {
       mainAxisSpacing: 12,
       childAspectRatio: 1.3,
       children: [
-        _buildGridItem(Icons.autorenew, '1-Touch Refill', 'Instant re-order', () {}),
+        _buildGridItem(Icons.autorenew, '1-Touch Refill', 'Instant re-order', () => _openRefill(context)),
         _buildGridItem(
           Icons.medical_services_outlined,
           'Med Cabinet',
