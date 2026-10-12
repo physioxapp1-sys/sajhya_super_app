@@ -294,6 +294,7 @@ class _LabTestScreenState extends State<LabTestScreen> {
           children: [
             Expanded(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('$count test${count == 1 ? '' : 's'} selected',
